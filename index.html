@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpMo Endurance — Race Registration</title>
+  <link rel="icon" href="https://raw.githubusercontent.com/OblivionsPeak/opmo-org-app/master/favicon.ico" />
+  <style>
+    :root {
+      --bg:      #0d0d0d;
+      --bg2:     #161616;
+      --bg3:     #1e1e1e;
+      --border:  #2a2a2a;
+      --text:    #f0f0f0;
+      --muted:   #888;
+      --accent:  #e53935;
+      --accent2: #ff6659;
+      --radius:  10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo img { height: 30px; }
+    .logo-text { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+    .logo-sub  { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+    .header-right { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+    /* ── Layout ── */
+    main { max-width: 940px; margin: 0 auto; padding: 28px 16px 100px; }
+
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--muted); margin: 28px 0 12px;
+    }
+
+    /* ── Race cards ── */
+    .race-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .race-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .race-card.expanded { border-color: #3a3a3a; }
+
+    .race-card-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 18px; cursor: pointer; user-select: none;
+    }
+    .race-card-header:hover { background: var(--bg3); }
+
+    .race-track { font-size: 17px; font-weight: 700; flex: 1; }
+    .race-format { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+
+    .race-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+    .race-date { font-size: 12px; color: var(--muted); }
+
+    .race-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
+      text-transform: uppercase; padding: 2px 8px; border-radius: 4px;
+      background: rgba(229,57,53,.12); color: var(--accent2);
+      border: 1px solid rgba(229,57,53,.25);
+    }
+    .race-badge.past   { background: rgba(255,255,255,.05); color: var(--muted); border-color: var(--border); }
+    .race-badge.full   { background: rgba(67,160,71,.12);   color: #81c784;      border-color: rgba(67,160,71,.3); }
+
+    .expand-icon { color: var(--muted); font-size: 16px; transition: transform 0.2s; flex-shrink: 0; }
+    .race-card.expanded .expand-icon { transform: rotate(180deg); }
+
+    /* ── Race body / cars ── */
+    .race-body { display: none; border-top: 1px solid var(--border); padding: 16px; }
+    .race-card.expanded .race-body { display: block; }
+
+    .cars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+
+    .car-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+
+    .car-header {
+      display: flex; align-items: center; gap: 9px;
+      padding: 11px 14px; border-bottom: 1px solid var(--border);
+    }
+    .car-color-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .car-label { font-size: 13px; font-weight: 600; flex: 1; }
+    .car-count { font-size: 11px; color: var(--muted); }
+
+    .car-drivers { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+
+    .driver-entry { display: flex; align-items: center; gap: 8px; }
+    .driver-num   { font-size: 10px; color: var(--muted); width: 12px; text-align: right; flex-shrink: 0; }
+    .driver-info  { flex: 1; min-width: 0; }
+    .driver-name  { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .driver-iracing { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .btn-remove {
+      background: none; border: none; color: transparent;
+      cursor: pointer; font-size: 13px; padding: 3px 5px; border-radius: 4px;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    .driver-entry:hover .btn-remove { color: var(--muted); }
+    .btn-remove:hover { color: var(--accent2) !important; background: rgba(229,57,53,.1); }
+
+    .open-slot {
+      height: 30px; border: 1px dashed var(--border); border-radius: 5px;
+      display: flex; align-items: center; padding: 0 10px;
+      font-size: 11px; color: var(--muted);
+    }
+
+    .car-footer { padding: 10px 14px; border-top: 1px solid var(--border); }
+
+    .btn-register {
+      width: 100%; padding: 8px 0; background: var(--accent);
+      color: #fff; border: none; border-radius: 6px;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-register:hover:not(:disabled)  { background: var(--accent2); }
+    .btn-register:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; border: 1px solid var(--border); }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 50px; padding: 14px 24px;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 20px rgba(229,57,53,.4);
+      display: flex; align-items: center; gap: 8px; z-index: 50;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .fab:hover { background: var(--accent2); box-shadow: 0 4px 28px rgba(229,57,53,.55); }
+
+    /* ── Modals ── */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.78);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 20px;
+    }
+    .modal {
+      background: var(--bg2); border: 1px solid #333;
+      border-radius: 14px; padding: 28px; width: 100%;
+      max-width: 500px; max-height: 92vh; overflow-y: auto;
+    }
+    .modal h2 { font-size: 18px; margin-bottom: 22px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 11px; font-weight: 600;
+      letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+    }
+    .form-group input, .form-group select {
+      width: 100%; background: var(--bg3);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; color: var(--text); font-size: 14px; outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+
+    .btn-primary   { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; transition: border-color 0.15s; }
+    .btn-secondary:hover { border-color: #555; }
+
+    /* ── Car builder rows (inside Add Race modal) ── */
+    .car-builders { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+    .car-builder-row {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .car-builder-row input[type="color"]  { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; padding: 2px; flex-shrink: 0; }
+    .car-builder-row input[type="text"]   { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; outline: none; min-width: 0; }
+    .car-builder-row input[type="text"]:focus { border-color: var(--accent); }
+    .car-builder-row input[type="number"] { width: 52px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; color: var(--text); font-size: 13px; text-align: center; outline: none; }
+    .car-builder-row input[type="number"]:focus { border-color: var(--accent); }
+    .max-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .btn-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; flex-shrink: 0; }
+    .btn-del:hover { color: var(--accent2); }
+
+    .btn-add-car {
+      width: 100%; padding: 9px; background: none;
+      border: 1px dashed var(--border); border-radius: 8px;
+      color: var(--muted); font-size: 13px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-add-car:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Error / notice ── */
+    .form-error {
+      font-size: 12px; color: var(--accent2);
+      background: rgba(229,57,53,.1); border: 1px solid rgba(229,57,53,.25);
+      border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; display: none;
+    }
+    .form-error.show { display: block; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 72px 20px; color: var(--muted); }
+    .empty .e-icon { font-size: 44px; margin-bottom: 14px; }
+    .empty p { font-size: 15px; }
+
+    /* ── Loading spinner ── */
+    .loading { text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
+
+    /* ── Delete race button ── */
+    .btn-delete-race {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; margin-top: 14px;
+      transition: all 0.15s;
+    }
+    .btn-delete-race:hover { border-color: var(--accent); color: var(--accent2); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <img src="https://raw.githubusercontent.com/OblivionsPeak/opmo-org-app/master/23_OpMo_logo_signet_White_Lettering.png" alt="OpMo" onerror="this.style.display='none'" />
+    <div>
+      <div class="logo-text">OpMo Endurance</div>
+      <div class="logo-sub">Race Registration</div>
+    </div>
+  </div>
+  <div class="header-right">All times local to your device</div>
+</header>
+
+<main>
+  <div id="root"><div class="loading">Loading races…</div></div>
+</main>
+
+<button class="fab" id="addRaceBtn">&#＋; Add Race</button>
+
+<!-- ══ ADD RACE MODAL ══ -->
+<div class="overlay" id="addRaceOverlay" style="display:none">
+  <div class="modal">
+    <h2>Add Race</h2>
+    <div class="form-error" id="addRaceError"></div>
+    <div class="form-group">
+      <label>Track</label>
+      <input type="text" id="raceTrack" placeholder="e.g. Watkins Glen" />
+    </div>
+    <div class="form-group">
+      <label>Format / Notes <span style="font-weight:400;text-transform:none">(optional)</span></label>
+      <input type="text" id="raceFmt" placeholder="e.g. 2h 45m, 6 Hours of Spa" />
+    </div>
+    <div class="form-group">
+      <label>Date &amp; Time</label>
+      <input type="datetime-local" id="raceDate" />
+    </div>
+    <div class="form-group">
+      <label>Cars / Entries</label>
+      <div class="car-builders" id="carBuilders"></div>
+      <button class="btn-add-car" id="addCarBtn">+ Add Car</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelAddRace">Cancel</button>
+      <button class="btn-primary"   id="submitAddRace">Create Race</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REGISTER MODAL ══ -->
+<div class="overlay" id="registerOverlay" style="display:none">
+  <div class="modal" style="max-width:400px">
+    <h2 id="regTitle">Register</h2>
+    <div class="form-error" id="regError"></div>
+    <div class="form-group">
+      <label>Your Name</label>
+      <input type="text" id="regName" placeholder="First Last" autocomplete="name" />
+    </div>
+    <div class="form-group">
+      <label>iRacing Username</label>
+      <input type="text" id="regIracing" placeholder="Exact iRacing display name" autocomplete="off" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelReg">Cancel</button>
+      <button class="btn-primary"   id="submitReg">Register</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }                                                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, doc, addDoc, deleteDoc, onSnapshot,
+         serverTimestamp, query, orderBy }                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── Firebase ──────────────────────────────────────────────────────────────
+const app = initializeApp({
+  apiKey:            "AIzaSyBCmOk5BeUOcX7y_0araxAqco_hJ8E4H94",
+  authDomain:        "operation-motorsport-scoring.firebaseapp.com",
+  projectId:         "operation-motorsport-scoring",
+  storageBucket:     "operation-motorsport-scoring.firebasestorage.app",
+  messagingSenderId: "464083122390",
+  appId:             "1:464083122390:web:12f78d594c8ea51fa1b177"
+});
+const db = getFirestore(app);
+
+// ── State ─────────────────────────────────────────────────────────────────
+let races = [], regs = [];
+let pendingRaceId = null, pendingCarId = null, pendingCarLabel = null;
+let carBuilders = [];
+
+// Preset car colours for quick selection
+const PRESET_COLORS = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#f9a825','#00acc1','#e91e63'];
+
+// ── Real-time listeners ───────────────────────────────────────────────────
+onSnapshot(query(collection(db, 'endurance_races'), orderBy('date', 'asc')), snap => {
+  races = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  render();
+});
+onSnapshot(collection(db, 'endurance_registrations'), snap => {
+  regs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  render();
+});
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  const root = document.getElementById('root');
+  if (races.length === 0) {
+    root.innerHTML = `<div class="empty"><div class="e-icon">🏁</div><p>No races yet — hit <strong>Add Race</strong> to create the first one.</p></div>`;
+    return;
+  }
+
+  const now = Date.now();
+  const cutoff = now - 3 * 3600 * 1000; // grace: 3 h after start still "upcoming"
+  const upcoming = races.filter(r => ts(r.date) >= cutoff);
+  const past     = races.filter(r => ts(r.date) <  cutoff);
+
+  let html = '';
+  if (upcoming.length) html += section('Upcoming Races', upcoming, false);
+  if (past.length)     html += section('Past Races',     past,     true);
+  root.innerHTML = html;
+
+  // Expand/collapse headers
+  root.querySelectorAll('.race-card-header').forEach(h =>
+    h.addEventListener('click', () => h.closest('.race-card').classList.toggle('expanded'))
+  );
+}
+
+function ts(fireTs) {
+  if (!fireTs) return 0;
+  return fireTs.toMillis ? fireTs.toMillis() : new Date(fireTs).getTime();
+}
+
+function fmtDate(fireTs) {
+  if (!fireTs) return '—';
+  const d = fireTs.toDate ? fireTs.toDate() : new Date(fireTs);
+  return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function section(label, list, isPast) {
+  return `<div class="section-label">${label}</div><div class="race-list">${list.map(r => raceCard(r, isPast)).join('')}</div>`;
+}
+
+function raceCard(race, isPast) {
+  const raceRegs   = regs.filter(r => r.raceId === race.id);
+  const totalSlots = (race.cars || []).reduce((a, c) => a + (c.maxDrivers || 2), 0);
+  const filled     = raceRegs.length;
+  const isFull     = filled >= totalSlots && totalSlots > 0;
+
+  const badgeClass = isPast ? 'past' : isFull ? 'full' : '';
+  const badgeText  = isPast ? 'Completed' : isFull ? 'Full' : `${filled} / ${totalSlots} registered`;
+
+  const carsHtml = (race.cars || []).map(car => carCard(race, car, raceRegs, isPast)).join('');
+
+  return `
+  <div class="race-card">
+    <div class="race-card-header">
+      <div class="race-track">${esc(race.track)}${race.format ? `<span class="race-format">· ${esc(race.format)}</span>` : ''}</div>
+      <div class="race-meta">
+        <div class="race-date">${fmtDate(race.date)}</div>
+        <div class="race-badge ${badgeClass}">${badgeText}</div>
+      </div>
+      <div class="expand-icon">▾</div>
+    </div>
+    <div class="race-body">
+      <div class="cars-grid">${carsHtml}</div>
+      <button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>
+    </div>
+  </div>`;
+}
+
+function carCard(race, car, raceRegs, isPast) {
+  const carRegs = raceRegs.filter(r => r.carId === car.id);
+  const isFull  = carRegs.length >= car.maxDrivers;
+
+  let driversHtml = '';
+  for (let i = 0; i < car.maxDrivers; i++) {
+    const reg = carRegs[i];
+    if (reg) {
+      driversHtml += `
+        <div class="driver-entry">
+          <span class="driver-num">${i + 1}</span>
+          <div class="driver-info">
+            <div class="driver-name">${esc(reg.name)}</div>
+            <div class="driver-iracing">${esc(reg.iracing)}</div>
+          </div>
+          <button class="btn-remove" data-regid="${reg.id}" title="Remove registration">✕</button>
+        </div>`;
+    } else {
+      driversHtml += `<div class="open-slot">Open slot ${i + 1}</div>`;
+    }
+  }
+
+  const disabled    = isFull || isPast;
+  const btnText     = isPast ? 'Race Ended' : isFull ? 'Car Full' : 'Register';
+
+  return `
+  <div class="car-card">
+    <div class="car-header">
+      <div class="car-color-dot" style="background:${car.color}"></div>
+      <div class="car-label">${esc(car.label)}</div>
+      <div class="car-count">${carRegs.length}/${car.maxDrivers}</div>
+    </div>
+    <div class="car-drivers">${driversHtml}</div>
+    <div class="car-footer">
+      <button class="btn-register" ${disabled ? 'disabled' : ''}
+        data-raceid="${race.id}" data-carid="${car.id}" data-carlabel="${esc(car.label)}">
+        ${btnText}
+      </button>
+    </div>
+  </div>`;
+}
+
+// Event delegation for dynamically rendered buttons
+document.getElementById('root').addEventListener('click', e => {
+  const regBtn  = e.target.closest('.btn-register');
+  const remBtn  = e.target.closest('.btn-remove');
+  const delRace = e.target.closest('.btn-delete-race');
+
+  if (regBtn && !regBtn.disabled) {
+    openRegister(regBtn.dataset.raceid, regBtn.dataset.carid, regBtn.dataset.carlabel);
+  }
+  if (remBtn) {
+    removeReg(remBtn.dataset.regid);
+  }
+  if (delRace) {
+    deleteRace(delRace.dataset.raceid);
+  }
+});
+
+// ── Add Race ──────────────────────────────────────────────────────────────
+carBuilders = [{ color: '#e53935', label: 'OM Endurance — Red', max: 2 }];
+
+document.getElementById('addRaceBtn').addEventListener('click', () => {
+  renderCarBuilders();
+  document.getElementById('addRaceError').classList.remove('show');
+  document.getElementById('addRaceOverlay').style.display = 'flex';
+});
+document.getElementById('cancelAddRace').addEventListener('click', () => {
+  document.getElementById('addRaceOverlay').style.display = 'none';
+});
+document.getElementById('addCarBtn').addEventListener('click', () => {
+  carBuilders.push({ color: PRESET_COLORS[carBuilders.length % PRESET_COLORS.length], label: '', max: 2 });
+  renderCarBuilders();
+});
+
+function renderCarBuilders() {
+  document.getElementById('carBuilders').innerHTML = carBuilders.map((c, i) => `
+    <div class="car-builder-row">
+      <input type="color" value="${c.color}" data-idx="${i}" data-field="color" />
+      <input type="text" value="${c.label}" placeholder="e.g. OM Endurance — White" data-idx="${i}" data-field="label" />
+      <input type="number" value="${c.max}" min="1" max="6" title="Max drivers" data-idx="${i}" data-field="max" />
+      <span class="max-label">drivers</span>
+      <button class="btn-del" data-idx="${i}" title="Remove car">✕</button>
+    </div>`).join('');
+
+  document.getElementById('carBuilders').querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const idx = +inp.dataset.idx, field = inp.dataset.field;
+      carBuilders[idx][field] = field === 'max' ? +inp.value : inp.value;
+    });
+  });
+  document.getElementById('carBuilders').querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      carBuilders.splice(+btn.dataset.idx, 1);
+      renderCarBuilders();
+    });
+  });
+}
+
+document.getElementById('submitAddRace').addEventListener('click', async () => {
+  const track = document.getElementById('raceTrack').value.trim();
+  const fmt   = document.getElementById('raceFmt').value.trim();
+  const dval  = document.getElementById('raceDate').value;
+  const errEl = document.getElementById('addRaceError');
+
+  if (!track) { showErr(errEl, 'Please enter a track name.'); return; }
+  if (!dval)  { showErr(errEl, 'Please select a date and time.'); return; }
+  if (!carBuilders.length) { showErr(errEl, 'Add at least one car.'); return; }
+
+  const cars = carBuilders.map((c, i) => ({
+    id: `car${i}_${Date.now()}`,
+    color: c.color || '#e53935',
+    label: c.label || `Car ${i + 1}`,
+    maxDrivers: Math.max(1, c.max || 2)
+  }));
+
+  const btn = document.getElementById('submitAddRace');
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  await addDoc(collection(db, 'endurance_races'), {
+    track, format: fmt, date: new Date(dval), cars, createdAt: serverTimestamp()
+  });
+
+  btn.disabled = false; btn.textContent = 'Create Race';
+  document.getElementById('addRaceOverlay').style.display = 'none';
+  document.getElementById('raceTrack').value = '';
+  document.getElementById('raceFmt').value   = '';
+  document.getElementById('raceDate').value  = '';
+  carBuilders = [{ color: '#e53935', label: 'OM Endurance — Red', max: 2 }];
+});
+
+// ── Register ──────────────────────────────────────────────────────────────
+function openRegister(raceId, carId, carLabel) {
+  pendingRaceId   = raceId;
+  pendingCarId    = carId;
+  pendingCarLabel = carLabel;
+  document.getElementById('regTitle').textContent = `Register — ${carLabel}`;
+  document.getElementById('regError').classList.remove('show');
+  document.getElementById('regName').value    = '';
+  document.getElementById('regIracing').value = '';
+  document.getElementById('registerOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('regName').focus(), 50);
+}
+
+document.getElementById('cancelReg').addEventListener('click', () => {
+  document.getElementById('registerOverlay').style.display = 'none';
+});
+
+document.getElementById('registerOverlay').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('submitReg').click();
+  if (e.key === 'Escape') document.getElementById('registerOverlay').style.display = 'none';
+});
+
+document.getElementById('submitReg').addEventListener('click', async () => {
+  const name    = document.getElementById('regName').value.trim();
+  const iracing = document.getElementById('regIracing').value.trim();
+  const errEl   = document.getElementById('regError');
+
+  if (!name)    { showErr(errEl, 'Please enter your name.'); return; }
+  if (!iracing) { showErr(errEl, 'Please enter your iRacing username.'); return; }
+
+  // Duplicate check — same iRacing name already in this race
+  const dup = regs.find(r => r.raceId === pendingRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
+  if (dup) { showErr(errEl, 'That iRacing username is already registered for this race.'); return; }
+
+  const btn = document.getElementById('submitReg');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  await addDoc(collection(db, 'endurance_registrations'), {
+    raceId: pendingRaceId, carId: pendingCarId,
+    name, iracing, timestamp: serverTimestamp()
+  });
+
+  btn.disabled = false; btn.textContent = 'Register';
+  document.getElementById('registerOverlay').style.display = 'none';
+});
+
+// ── Remove / delete ───────────────────────────────────────────────────────
+async function removeReg(regId) {
+  if (confirm('Remove this registration?')) {
+    await deleteDoc(doc(db, 'endurance_registrations', regId));
+  }
+}
+
+async function deleteRace(raceId) {
+  if (!confirm('Delete this race and all its registrations? This cannot be undone.')) return;
+  // Delete all registrations for this race first
+  const raceRegs = regs.filter(r => r.raceId === raceId);
+  await Promise.all(raceRegs.map(r => deleteDoc(doc(db, 'endurance_registrations', r.id))));
+  await deleteDoc(doc(db, 'endurance_races', raceId));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showErr(el, msg) {
+  el.textContent = msg; el.classList.add('show');
+}
+</script>
+</body>
+</html>
