@@ -256,8 +256,12 @@
       <input type="text" id="raceFmt" placeholder="e.g. 2h 45m, 6 Hours of Spa" />
     </div>
     <div class="form-group">
-      <label>Date &amp; Time</label>
-      <input type="datetime-local" id="raceDate" />
+      <label>Start Date &amp; Time</label>
+      <input type="datetime-local" id="raceDateStart" />
+    </div>
+    <div class="form-group">
+      <label>End Date &amp; Time</label>
+      <input type="datetime-local" id="raceDateEnd" />
     </div>
     <div class="form-group">
       <label>Cars / Entries</label>
@@ -316,7 +320,7 @@ let carBuilders = [];
 const PRESET_COLORS = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#f9a825','#00acc1','#e91e63'];
 
 // ── Real-time listeners ───────────────────────────────────────────────────
-onSnapshot(query(collection(db, 'endurance_races'), orderBy('date', 'asc')), snap => {
+onSnapshot(query(collection(db, 'endurance_races'), orderBy('dateStart', 'asc')), snap => {
   races = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   render();
 });
@@ -334,9 +338,9 @@ function render() {
   }
 
   const now = Date.now();
-  const cutoff = now - 3 * 3600 * 1000; // grace: 3 h after start still "upcoming"
-  const upcoming = races.filter(r => ts(r.date) >= cutoff);
-  const past     = races.filter(r => ts(r.date) <  cutoff);
+  // A race is "past" once its end time (or start if no end set) has passed
+  const upcoming = races.filter(r => ts(r.dateEnd || r.dateStart || r.date) >= now);
+  const past     = races.filter(r => ts(r.dateEnd || r.dateStart || r.date) <  now);
 
   let html = '';
   if (upcoming.length) html += section('Upcoming Races', upcoming, false);
@@ -354,10 +358,19 @@ function ts(fireTs) {
   return fireTs.toMillis ? fireTs.toMillis() : new Date(fireTs).getTime();
 }
 
-function fmtDate(fireTs) {
-  if (!fireTs) return '—';
-  const d = fireTs.toDate ? fireTs.toDate() : new Date(fireTs);
-  return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+function fmtDate(startTs, endTs) {
+  if (!startTs) return '—';
+  const opts = { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
+  const start = (startTs.toDate ? startTs.toDate() : new Date(startTs));
+  const startStr = start.toLocaleDateString('en-US', opts);
+  if (!endTs) return startStr;
+  const end = (endTs.toDate ? endTs.toDate() : new Date(endTs));
+  // If same day, just show end time; otherwise show full end date
+  const sameDay = start.toDateString() === end.toDateString();
+  const endStr = sameDay
+    ? end.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })
+    : end.toLocaleDateString('en-US', opts);
+  return `${startStr} → ${endStr}`;
 }
 
 function section(label, list, isPast) {
@@ -380,7 +393,7 @@ function raceCard(race, isPast) {
     <div class="race-card-header">
       <div class="race-track">${esc(race.track)}${race.format ? `<span class="race-format">· ${esc(race.format)}</span>` : ''}</div>
       <div class="race-meta">
-        <div class="race-date">${fmtDate(race.date)}</div>
+        <div class="race-date">${fmtDate(race.dateStart || race.date, race.dateEnd)}</div>
         <div class="race-badge ${badgeClass}">${badgeText}</div>
       </div>
       <div class="expand-icon">▾</div>
@@ -493,12 +506,15 @@ function renderCarBuilders() {
 
 document.getElementById('submitAddRace').addEventListener('click', async () => {
   const track = document.getElementById('raceTrack').value.trim();
-  const fmt   = document.getElementById('raceFmt').value.trim();
-  const dval  = document.getElementById('raceDate').value;
-  const errEl = document.getElementById('addRaceError');
+  const fmt       = document.getElementById('raceFmt').value.trim();
+  const dvalStart = document.getElementById('raceDateStart').value;
+  const dvalEnd   = document.getElementById('raceDateEnd').value;
+  const errEl     = document.getElementById('addRaceError');
 
-  if (!track) { showErr(errEl, 'Please enter a track name.'); return; }
-  if (!dval)  { showErr(errEl, 'Please select a date and time.'); return; }
+  if (!track)     { showErr(errEl, 'Please enter a track name.'); return; }
+  if (!dvalStart) { showErr(errEl, 'Please select a start date and time.'); return; }
+  if (!dvalEnd)   { showErr(errEl, 'Please select an end date and time.'); return; }
+  if (new Date(dvalEnd) <= new Date(dvalStart)) { showErr(errEl, 'End time must be after start time.'); return; }
   if (!carBuilders.length) { showErr(errEl, 'Add at least one car.'); return; }
 
   const cars = carBuilders.map((c, i) => ({
@@ -512,14 +528,18 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Creating…';
 
   await addDoc(collection(db, 'endurance_races'), {
-    track, format: fmt, date: new Date(dval), cars, createdAt: serverTimestamp()
+    track, format: fmt,
+    dateStart: new Date(dvalStart),
+    dateEnd:   new Date(dvalEnd),
+    cars, createdAt: serverTimestamp()
   });
 
   btn.disabled = false; btn.textContent = 'Create Race';
   document.getElementById('addRaceOverlay').style.display = 'none';
-  document.getElementById('raceTrack').value = '';
-  document.getElementById('raceFmt').value   = '';
-  document.getElementById('raceDate').value  = '';
+  document.getElementById('raceTrack').value     = '';
+  document.getElementById('raceFmt').value       = '';
+  document.getElementById('raceDateStart').value = '';
+  document.getElementById('raceDateEnd').value   = '';
   carBuilders = [{ color: '#e53935', label: 'OM Endurance — Red', max: 2 }];
 });
 
