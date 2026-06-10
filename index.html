@@ -359,10 +359,15 @@
       <label>End Date &amp; Time</label>
       <input type="datetime-local" id="raceDateEnd" />
     </div>
-    <div class="form-group">
-      <label>Cars / Entries</label>
-      <div class="car-builders" id="carBuilders"></div>
-      <button class="btn-add-car" id="addCarBtn">+ Add Car</button>
+    <div style="display:flex;gap:12px">
+      <div class="form-group" style="flex:1">
+        <label>Number of Teams</label>
+        <input type="number" id="raceNumTeams" min="1" max="99" value="2" />
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Drivers Per Team</label>
+        <input type="number" id="raceDriversPerTeam" min="1" max="6" value="2" />
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelAddRace">Cancel</button>
@@ -691,46 +696,13 @@ document.getElementById('root').addEventListener('click', e => {
 });
 
 // ── Add Race ──────────────────────────────────────────────────────────────
-carBuilders = [{ number: 1, max: 2 }];
-
 document.getElementById('addRaceBtn').addEventListener('click', () => {
-  renderCarBuilders();
   document.getElementById('addRaceError').classList.remove('show');
   document.getElementById('addRaceOverlay').style.display = 'flex';
 });
 document.getElementById('cancelAddRace').addEventListener('click', () => {
   document.getElementById('addRaceOverlay').style.display = 'none';
 });
-document.getElementById('addCarBtn').addEventListener('click', () => {
-  const next = (carBuilders[carBuilders.length - 1]?.number || 0) + 1;
-  carBuilders.push({ number: Math.min(next, 99), max: 2 });
-  renderCarBuilders();
-});
-
-function renderCarBuilders() {
-  document.getElementById('carBuilders').innerHTML = carBuilders.map((c, i) => `
-    <div class="car-builder-row">
-      <span class="team-num-label">Team</span>
-      <input type="number" class="team-num-input" value="${c.number}" min="1" max="99" title="Team number" data-idx="${i}" data-field="number" />
-      <span class="max-label" style="margin-left:8px">Max</span>
-      <input type="number" class="max-input" value="${c.max}" min="1" max="6" title="Max drivers" data-idx="${i}" data-field="max" />
-      <span class="max-label">drivers</span>
-      <button class="btn-del" data-idx="${i}" title="Remove team">✕</button>
-    </div>`).join('');
-
-  document.getElementById('carBuilders').querySelectorAll('input').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const idx = +inp.dataset.idx, field = inp.dataset.field;
-      carBuilders[idx][field] = +inp.value;
-    });
-  });
-  document.getElementById('carBuilders').querySelectorAll('.btn-del').forEach(btn => {
-    btn.addEventListener('click', () => {
-      carBuilders.splice(+btn.dataset.idx, 1);
-      renderCarBuilders();
-    });
-  });
-}
 
 document.getElementById('submitAddRace').addEventListener('click', async () => {
   const track = document.getElementById('raceTrack').value.trim();
@@ -739,16 +711,19 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   const dvalEnd   = document.getElementById('raceDateEnd').value;
   const errEl     = document.getElementById('addRaceError');
 
+  const numTeams  = Math.min(99, Math.max(1, +document.getElementById('raceNumTeams').value || 2));
+  const driversEa = Math.min(6,  Math.max(1, +document.getElementById('raceDriversPerTeam').value || 2));
+
   if (!track)     { showErr(errEl, 'Please enter a track name.'); return; }
   if (!dvalStart) { showErr(errEl, 'Please select a start date and time.'); return; }
   if (!dvalEnd)   { showErr(errEl, 'Please select an end date and time.'); return; }
   if (new Date(dvalEnd) <= new Date(dvalStart)) { showErr(errEl, 'End time must be after start time.'); return; }
-  if (!carBuilders.length) { showErr(errEl, 'Add at least one car.'); return; }
 
-  const cars = carBuilders.map((c, i) => ({
-    id: `car${i}_${Date.now()}`,
-    number: Math.min(99, Math.max(1, c.number || i + 1)),
-    maxDrivers: Math.max(1, c.max || 2)
+  const now  = Date.now();
+  const cars = Array.from({ length: numTeams }, (_, i) => ({
+    id: `car${i + 1}_${now}`,
+    number: i + 1,
+    maxDrivers: driversEa,
   }));
 
   const btn = document.getElementById('submitAddRace');
@@ -763,11 +738,12 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
 
   btn.disabled = false; btn.textContent = 'Create Race';
   document.getElementById('addRaceOverlay').style.display = 'none';
-  document.getElementById('raceTrack').value     = '';
-  document.getElementById('raceFmt').value       = '';
-  document.getElementById('raceDateStart').value = '';
-  document.getElementById('raceDateEnd').value   = '';
-  carBuilders = [{ number: 1, max: 2 }];
+  document.getElementById('raceTrack').value          = '';
+  document.getElementById('raceFmt').value            = '';
+  document.getElementById('raceDateStart').value      = '';
+  document.getElementById('raceDateEnd').value        = '';
+  document.getElementById('raceNumTeams').value       = '2';
+  document.getElementById('raceDriversPerTeam').value = '2';
 });
 
 // ── TP Mode ───────────────────────────────────────────────────────────────
