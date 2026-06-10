@@ -147,6 +147,14 @@
     .btn-register:hover:not(:disabled)  { background: var(--accent2); }
     .btn-register:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; border: 1px solid var(--border); }
 
+    /* ── Add team button (TP only) ── */
+    .btn-add-team {
+      margin-top: 14px; padding: 8px 18px;
+      background: none; border: 1px dashed var(--border); color: var(--muted);
+      border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-add-team:hover { border-color: var(--accent); color: var(--text); }
+
     /* ── Race-level register button ── */
     .btn-race-register {
       margin-top: 14px; padding: 9px 20px;
@@ -359,15 +367,9 @@
       <label>End Date &amp; Time</label>
       <input type="datetime-local" id="raceDateEnd" />
     </div>
-    <div style="display:flex;gap:12px">
-      <div class="form-group" style="flex:1">
-        <label>Number of Teams</label>
-        <input type="number" id="raceNumTeams" min="1" max="99" value="2" />
-      </div>
-      <div class="form-group" style="flex:1">
-        <label>Drivers Per Team</label>
-        <input type="number" id="raceDriversPerTeam" min="1" max="6" value="2" />
-      </div>
+    <div class="form-group">
+      <label>Drivers Per Team</label>
+      <input type="number" id="raceDriversPerTeam" min="1" max="6" value="2" />
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelAddRace">Cancel</button>
@@ -580,6 +582,7 @@ function raceCard(race, isPast) {
     </div>
     <div class="race-body">
       <div class="cars-grid">${carsHtml}</div>
+      ${tpMode && !isPast ? `<button class="btn-add-team" data-action="add-team" data-raceid="${race.id}">+ Add Team</button>` : ''}
       ${unassignedSection(race, raceRegs, isPast)}
       ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button>` : ''}
       ${tpMode ? `<button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>` : ''}
@@ -684,6 +687,8 @@ document.getElementById('root').addEventListener('click', e => {
   if (assignBtn && !assignBtn.disabled) {
     openAssign(assignBtn.dataset.raceid, assignBtn.dataset.carid, assignBtn.dataset.carlabel);
   }
+  const addTeamBtn = e.target.closest('[data-action="add-team"]');
+  if (addTeamBtn) addTeam(addTeamBtn.dataset.raceid);
   if (regBtn) {
     openRegister(regBtn.dataset.raceid, regBtn.dataset.racetrack);
   }
@@ -711,20 +716,14 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   const dvalEnd   = document.getElementById('raceDateEnd').value;
   const errEl     = document.getElementById('addRaceError');
 
-  const numTeams  = Math.min(99, Math.max(1, +document.getElementById('raceNumTeams').value || 2));
-  const driversEa = Math.min(6,  Math.max(1, +document.getElementById('raceDriversPerTeam').value || 2));
+  const driversEa = Math.min(6, Math.max(1, +document.getElementById('raceDriversPerTeam').value || 2));
 
   if (!track)     { showErr(errEl, 'Please enter a track name.'); return; }
   if (!dvalStart) { showErr(errEl, 'Please select a start date and time.'); return; }
   if (!dvalEnd)   { showErr(errEl, 'Please select an end date and time.'); return; }
   if (new Date(dvalEnd) <= new Date(dvalStart)) { showErr(errEl, 'End time must be after start time.'); return; }
 
-  const now  = Date.now();
-  const cars = Array.from({ length: numTeams }, (_, i) => ({
-    id: `car${i + 1}_${now}`,
-    number: i + 1,
-    maxDrivers: driversEa,
-  }));
+  const cars = []; // Teams added later by TP
 
   const btn = document.getElementById('submitAddRace');
   btn.disabled = true; btn.textContent = 'Creating…';
@@ -733,6 +732,7 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
     track, format: fmt,
     dateStart: new Date(dvalStart),
     dateEnd:   new Date(dvalEnd),
+    driversPerTeam: driversEa,
     cars, createdAt: serverTimestamp()
   });
 
@@ -742,7 +742,6 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   document.getElementById('raceFmt').value            = '';
   document.getElementById('raceDateStart').value      = '';
   document.getElementById('raceDateEnd').value        = '';
-  document.getElementById('raceNumTeams').value       = '2';
   document.getElementById('raceDriversPerTeam').value = '2';
 });
 
@@ -979,6 +978,17 @@ async function deleteRace(raceId) {
   const raceRegs = regs.filter(r => r.raceId === raceId);
   await Promise.all(raceRegs.map(r => deleteDoc(doc(db, 'endurance_registrations', r.id))));
   await deleteDoc(doc(db, 'endurance_races', raceId));
+}
+
+// ── Add Team (TP only) ────────────────────────────────────────────────────
+async function addTeam(raceId) {
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+  const existing = race.cars || [];
+  const nextNum  = existing.length > 0 ? Math.max(...existing.map(c => c.number || 0)) + 1 : 1;
+  if (nextNum > 99) { alert('Maximum 99 teams reached.'); return; }
+  const newCar = { id: `car${nextNum}_${Date.now()}`, number: nextNum, maxDrivers: race.driversPerTeam || 2 };
+  await updateDoc(doc(db, 'endurance_races', raceId), { cars: [...existing, newCar] });
 }
 
 // ── Export PDF ────────────────────────────────────────────────────────────
