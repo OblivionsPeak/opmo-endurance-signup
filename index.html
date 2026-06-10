@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpMo Endurance — Race Registration</title>
   <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg:      #0d0d0d;
@@ -309,6 +310,37 @@
     }
     .group-cluster-body { padding: 6px 0; }
 
+    /* ── Affiliation badge ── */
+    .affil-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+    }
+    .affil-beneficiary { background: rgba(229,57,53,.12); color: var(--accent2); border: 1px solid rgba(229,57,53,.25); }
+    .affil-supporter   { background: rgba(67,160,71,.1);  color: #81c784;       border: 1px solid rgba(67,160,71,.25); }
+    .affil-vip         { background: rgba(255,215,0,.1);  color: #FFD700;       border: 1px solid rgba(255,215,0,.25); }
+
+    /* ── Driver registry overlay ── */
+    .registry-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.92);
+      z-index: 300; display: none; flex-direction: column;
+    }
+    .registry-overlay.open { display: flex; }
+    .registry-header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      background: var(--bg2); flex-shrink: 0;
+    }
+    .registry-header h2 { font-size: 18px; flex: 1; }
+    .registry-body { flex: 1; overflow-y: auto; padding: 24px; }
+    .registry-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .registry-table th {
+      text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border); background: var(--bg2);
+    }
+    .registry-table td { padding: 10px 14px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; }
+    .registry-table tr:hover td { background: var(--bg3); }
+
     /* ── Export button ── */
     .btn-export {
       font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
@@ -316,6 +348,19 @@
       border-radius: 6px; padding: 7px 14px; cursor: pointer; transition: all 0.15s;
     }
     .btn-export:hover { border-color: #888; color: #fff; }
+    .btn-xls {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      background: var(--bg3); border: 1px solid #2a6b2a; color: #81c784;
+      border-radius: 6px; padding: 7px 14px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-xls:hover { border-color: #81c784; color: #a5d6a7; }
+    .btn-registry {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      background: var(--bg3); border: 1px solid #444; color: #ccc;
+      border-radius: 6px; padding: 7px 14px; cursor: pointer; transition: all 0.15s; display: none;
+    }
+    .btn-registry.tp-visible { display: inline-block; }
+    .btn-registry:hover { border-color: #888; color: #fff; }
 
     /* ── Empty state ── */
     .empty { text-align: center; padding: 72px 20px; color: var(--muted); }
@@ -340,6 +385,8 @@
       .group-cluster { border-color: #ddd !important; background: #fafafa !important; }
       .group-cluster-header { background: #f0f0f0 !important; color: #555 !important; }
       .tp-code { display: none !important; }
+      .affil-badge { color: #333 !important; background: #f0f0f0 !important; border-color: #ccc !important; }
+      .registry-overlay { display: none !important; }
       main { padding: 12px !important; }
     }
 
@@ -373,7 +420,9 @@
     </div>
   </div>
   <div class="header-right">
-    <button class="btn-export" id="exportBtn">⬇ Export PDF</button>
+    <button class="btn-registry" id="registryBtn">👥 Driver Registry</button>
+    <button class="btn-export" id="exportBtn">⬇ Roster PDF</button>
+    <button class="btn-xls" id="exportXlsBtn">⬇ Roster XLS</button>
     <span class="tp-badge" id="tpBadge">TP Mode</span>
     <button class="btn-tp" id="tpBtn">🔒 Team Principal</button>
   </div>
@@ -414,6 +463,31 @@
       <button class="btn-secondary" id="cancelAddRace">Cancel</button>
       <button class="btn-primary"   id="submitAddRace">Create Race</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ DRIVER REGISTRY (TP only) ══ -->
+<div class="registry-overlay" id="registryOverlay">
+  <div class="registry-header">
+    <h2>Driver Registry</h2>
+    <button class="btn-export" id="registryPdfBtn">⬇ PDF</button>
+    <button class="btn-xls" id="registryXlsBtn">⬇ XLS</button>
+    <button class="btn-secondary" id="closeRegistry" style="padding:7px 16px;font-size:13px">✕ Close</button>
+  </div>
+  <div class="registry-body">
+    <table class="registry-table" id="registryTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>iRacing Username</th>
+          <th>Car</th>
+          <th>Affiliation</th>
+          <th>Races</th>
+        </tr>
+      </thead>
+      <tbody id="registryBody"></tbody>
+    </table>
   </div>
 </div>
 
@@ -522,6 +596,15 @@
           <option>Mercedes-AMG GT3 2020</option>
           <option>Porsche 911 GT3 R (992)</option>
         </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Affiliation</label>
+      <select id="regAffiliation">
+        <option value="">— Select affiliation —</option>
+        <option value="Operation Motorsport Beneficiary">Operation Motorsport Beneficiary</option>
+        <option value="Veteran Supporter">Veteran Supporter</option>
+        <option value="VIP">VIP</option>
       </select>
     </div>
     <div class="form-group">
@@ -722,7 +805,7 @@ function carCard(race, car, raceRegs, isPast) {
         <div class="driver-entry">
           <span class="driver-num">${i + 1}</span>
           <div class="driver-info">
-            <div class="driver-name">${esc(reg.name)}</div>
+            <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
             <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
           </div>
           ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Unassign driver">✕</button>` : ''}
@@ -777,7 +860,7 @@ function unassignedSection(race, raceRegs, isPast) {
   const driverRow = reg => `
     <div class="unassigned-driver">
       <div class="driver-info">
-        <div class="driver-name">${esc(reg.name)}</div>
+        <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
         <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
       </div>
       ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Remove">✕</button>` : ''}
@@ -875,6 +958,7 @@ function updateTpUI() {
   document.getElementById('tpBadge').classList.toggle('active', tpMode);
   document.getElementById('tpBtn').classList.toggle('active', tpMode);
   document.getElementById('tpBtn').textContent = tpMode ? '🔓 Exit TP Mode' : '🔒 Team Principal';
+  document.getElementById('registryBtn').classList.toggle('tp-visible', tpMode);
   render();
 }
 updateTpUI();
@@ -917,10 +1001,11 @@ function openRegister(raceId, raceTrack) {
   regGroupType   = 'solo';
   document.getElementById('regTitle').textContent = `Register — ${raceTrack}`;
   document.getElementById('regError').classList.remove('show');
-  document.getElementById('regName').value      = '';
-  document.getElementById('regIracing').value   = '';
-  document.getElementById('regCar').value       = '';
-  document.getElementById('regGroupCode').value = '';
+  document.getElementById('regName').value          = '';
+  document.getElementById('regIracing').value       = '';
+  document.getElementById('regCar').value           = '';
+  document.getElementById('regAffiliation').value   = '';
+  document.getElementById('regGroupCode').value     = '';
   document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t.dataset.gtype === 'solo'));
   document.getElementById('groupCreateSection').classList.remove('show');
   document.getElementById('groupJoinSection').classList.remove('show');
@@ -950,11 +1035,13 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   const iracing = document.getElementById('regIracing').value.trim();
   const errEl   = document.getElementById('regError');
 
-  const car = document.getElementById('regCar').value;
+  const car         = document.getElementById('regCar').value;
+  const affiliation = document.getElementById('regAffiliation').value;
 
-  if (!name)    { showErr(errEl, 'Please enter your name.'); return; }
-  if (!iracing) { showErr(errEl, 'Please enter your iRacing username.'); return; }
-  if (!car)     { showErr(errEl, 'Please select your car.'); return; }
+  if (!name)        { showErr(errEl, 'Please enter your name.'); return; }
+  if (!iracing)     { showErr(errEl, 'Please enter your iRacing username.'); return; }
+  if (!car)         { showErr(errEl, 'Please select your car.'); return; }
+  if (!affiliation) { showErr(errEl, 'Please select your affiliation.'); return; }
 
   const dup = regs.find(r => r.raceId === pendingRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
   if (dup) { showErr(errEl, 'That iRacing username is already registered for this race.'); return; }
@@ -980,7 +1067,7 @@ document.getElementById('submitReg').addEventListener('click', async () => {
 
   await addDoc(collection(db, 'endurance_registrations'), {
     raceId: pendingRaceId, carId: null, groupId,
-    name, iracing, car, timestamp: serverTimestamp()
+    name, iracing, car, affiliation, timestamp: serverTimestamp()
   });
 
   btn.disabled = false; btn.textContent = 'Register';
@@ -1173,9 +1260,111 @@ document.getElementById('submitEditRace').addEventListener('click', async () => 
   document.getElementById('editRaceOverlay').style.display = 'none';
 });
 
+// ── Driver Registry ───────────────────────────────────────────────────────
+function buildRegistry() {
+  const map = new Map();
+  for (const reg of regs) {
+    const key = reg.iracing.toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, { name: reg.name, iracing: reg.iracing, car: reg.car || '—', affiliation: reg.affiliation || '—', raceIds: new Set() });
+    }
+    map.get(key).raceIds.add(reg.raceId);
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function raceNameById(id) {
+  return races.find(r => r.id === id)?.track || id;
+}
+
+document.getElementById('registryBtn').addEventListener('click', () => {
+  const drivers = buildRegistry();
+  const tbody = document.getElementById('registryBody');
+  tbody.innerHTML = drivers.map((d, i) => `
+    <tr>
+      <td style="color:var(--muted)">${i + 1}</td>
+      <td style="font-weight:600">${esc(d.name)}</td>
+      <td style="color:var(--muted)">${esc(d.iracing)}</td>
+      <td style="font-size:13px">${esc(d.car)}</td>
+      <td>${affiliBadge(d.affiliation)}</td>
+      <td style="font-size:12px;color:var(--muted)">${[...d.raceIds].map(raceNameById).join(', ')}</td>
+    </tr>`).join('');
+  document.getElementById('registryOverlay').classList.add('open');
+});
+
+document.getElementById('closeRegistry').addEventListener('click', () => {
+  document.getElementById('registryOverlay').classList.remove('open');
+});
+
+document.getElementById('registryPdfBtn').addEventListener('click', () => {
+  const overlay = document.getElementById('registryOverlay');
+  overlay.classList.remove('open');
+  setTimeout(() => {
+    document.querySelectorAll('.race-card').forEach(c => c.classList.add('expanded'));
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`
+      <html><head><title>Driver Registry — OpMo Endurance</title>
+      <style>
+        body { font-family: sans-serif; font-size: 13px; color: #000; }
+        h2 { margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px 10px; background: #f0f0f0; border-bottom: 2px solid #ccc; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        tr:nth-child(even) td { background: #fafafa; }
+      </style></head><body>
+      <h2>OpMo Endurance — Driver Registry</h2>
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>iRacing Username</th><th>Car</th><th>Affiliation</th><th>Races</th></tr></thead>
+        <tbody>${buildRegistry().map((d, i) => `
+          <tr>
+            <td>${i + 1}</td><td>${esc(d.name)}</td><td>${esc(d.iracing)}</td>
+            <td>${esc(d.car)}</td><td>${esc(d.affiliation)}</td>
+            <td>${[...d.raceIds].map(raceNameById).join(', ')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></body></html>`);
+    printWin.document.close();
+    printWin.print();
+  }, 100);
+});
+
+// ── XLS Export ────────────────────────────────────────────────────────────
+document.getElementById('exportXlsBtn').addEventListener('click', () => {
+  const rows = [['Race', 'Team', 'Position (Start)', 'Position (Finish)', 'Driver Name', 'iRacing Username', 'Car', 'Affiliation']];
+  for (const race of races) {
+    const raceRegs = regs.filter(r => r.raceId === race.id);
+    for (const car of (race.cars || [])) {
+      const carRegs = raceRegs.filter(r => r.carId === car.id);
+      const result  = race.results?.[car.id] || {};
+      for (const reg of carRegs) {
+        rows.push([race.track, `Team #${car.number ?? car.label}`, result.start || '', result.finish || '', reg.name, reg.iracing, reg.car || '', reg.affiliation || '']);
+      }
+      // Unassigned
+    }
+    const unassigned = raceRegs.filter(r => !r.carId);
+    for (const reg of unassigned) {
+      rows.push([race.track, 'Unassigned', '', '', reg.name, reg.iracing, reg.car || '', reg.affiliation || '']);
+    }
+  }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Race Roster');
+  XLSX.writeFile(wb, 'OpMo_Endurance_Roster.xlsx');
+});
+
+document.getElementById('registryXlsBtn').addEventListener('click', () => {
+  const rows = [['#', 'Name', 'iRacing Username', 'Car', 'Affiliation', 'Races']];
+  buildRegistry().forEach((d, i) => {
+    rows.push([i + 1, d.name, d.iracing, d.car, d.affiliation, [...d.raceIds].map(raceNameById).join(', ')]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Driver Registry');
+  XLSX.writeFile(wb, 'OpMo_Endurance_DriverRegistry.xlsx');
+});
+
 // ── Export PDF ────────────────────────────────────────────────────────────
 document.getElementById('exportBtn').addEventListener('click', () => {
-  // Expand all race cards before printing
   document.querySelectorAll('.race-card').forEach(c => c.classList.add('expanded'));
   window.print();
 });
@@ -1245,6 +1434,17 @@ document.getElementById('submitResults').addEventListener('click', async () => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+function affiliBadge(affiliation) {
+  if (!affiliation || affiliation === '—') return '';
+  const cls = affiliation === 'Operation Motorsport Beneficiary' ? 'affil-beneficiary'
+            : affiliation === 'Veteran Supporter' ? 'affil-supporter'
+            : 'affil-vip';
+  const short = affiliation === 'Operation Motorsport Beneficiary' ? 'Beneficiary'
+              : affiliation === 'Veteran Supporter' ? 'Supporter'
+              : 'VIP';
+  return `<span class="affil-badge ${cls}" title="${esc(affiliation)}">${short}</span>`;
+}
+
 function posBadge(finish, start) {
   if (!finish && !start) return '';
   const cls = finish === 1 ? 'pos-1' : finish === 2 ? 'pos-2' : finish === 3 ? 'pos-3' : 'pos-n';
