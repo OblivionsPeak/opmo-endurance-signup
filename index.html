@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpMo Endurance — Race Registration</title>
   <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -347,7 +350,8 @@
     /* ── Print styles ── */
     @media print {
       header, .fab, .btn-tp, .btn-export, .btn-race-register, .btn-delete-race,
-      .btn-withdraw, .btn-remove, .car-footer, .overlay { display: none !important; }
+      .btn-withdraw, .btn-remove, .car-footer, .overlay,
+      .hero, .cal-wrap { display: none !important; }
       body { background: #fff !important; color: #000 !important; }
       .race-card { border: 1px solid #ccc !important; background: #fff !important; page-break-inside: avoid; margin-bottom: 16px; }
       .race-card-header { background: #f5f5f5 !important; }
@@ -385,6 +389,74 @@
     }
     .btn-edit-race:hover { border-color: #888; color: var(--text); }
 
+    /* ── Next-race hero ── */
+    .hero {
+      position: relative; overflow: hidden; text-align: center;
+      background: linear-gradient(135deg, rgba(229,57,53,.14), rgba(22,22,22,.94) 45%), var(--bg2);
+      border: 1px solid rgba(229,57,53,.3); border-radius: 14px;
+      padding: 36px 28px 30px; margin-bottom: 28px;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 8px;
+      background: repeating-conic-gradient(#fff 0% 25%, #111 0% 50%) 0 0 / 16px 8px;
+      opacity: .16;
+    }
+    .hero-kicker { font-size: 11px; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--accent2); margin-bottom: 10px; }
+    .hero-track {
+      font-family: 'Chakra Petch', 'Segoe UI', sans-serif;
+      font-size: clamp(28px, 6vw, 46px); font-weight: 700;
+      text-transform: uppercase; letter-spacing: .04em; line-height: 1.05;
+    }
+    .hero-format { color: var(--muted); font-size: 15px; margin-top: 4px; }
+    .hero-date { color: #ccc; font-size: 13px; margin-top: 8px; }
+    .hero-countdown { display: flex; justify-content: center; align-items: flex-start; gap: 10px; margin: 22px 0 4px; }
+    .cd-block { background: rgba(13,13,13,.8); border: 1px solid var(--border); border-radius: 10px; padding: 12px 0 8px; width: 74px; }
+    .cd-num {
+      font-family: 'Chakra Petch', monospace; font-size: 34px; font-weight: 700;
+      color: #fff; line-height: 1; font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 18px rgba(229,57,53,.5);
+    }
+    .cd-label { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+    .cd-sep { font-family: 'Chakra Petch', monospace; font-size: 30px; color: var(--accent); font-weight: 700; line-height: 58px; }
+    .hero-live { font-size: 16px; font-weight: 700; letter-spacing: .15em; color: #81c784; margin: 20px 0 4px; animation: heroPulse 1.6s infinite; }
+    @keyframes heroPulse { 50% { opacity: .5; } }
+    .hero-stats { font-size: 13px; color: var(--muted); margin: 10px 0 18px; }
+    .hero-actions { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .hero .btn-race-register, .hero .btn-cal { margin-top: 0; }
+
+    /* ── Add to calendar ── */
+    .btn-cal {
+      background: var(--bg3); border: 1px solid #444; color: #ccc;
+      border-radius: 6px; padding: 9px 16px; font-size: 13px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-cal:hover { border-color: #888; color: #fff; }
+    .cal-wrap { position: relative; display: inline-block; }
+    .cal-menu {
+      display: none; position: absolute; bottom: calc(100% + 6px); left: 0;
+      background: var(--bg2); border: 1px solid #3a3a3a; border-radius: 8px;
+      padding: 6px; z-index: 60; min-width: 185px; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+    .cal-wrap.open .cal-menu { display: block; }
+    .cal-menu button {
+      display: block; width: 100%; text-align: left; background: none; border: none;
+      color: var(--text); font-size: 13px; padding: 8px 10px; border-radius: 6px;
+      cursor: pointer; font-family: inherit;
+    }
+    .cal-menu button:hover { background: rgba(229,57,53,.12); color: var(--accent2); }
+    .race-body .btn-cal { margin-top: 14px; }
+    .race-body .cal-wrap { margin-left: 8px; }
+
+    /* ── Drag-and-drop (TP) ── */
+    .car-card::before {
+      content: ''; display: block; height: 3px; flex-shrink: 0;
+      background: linear-gradient(90deg, var(--accent) 0%, rgba(229,57,53,.15) 70%, transparent);
+    }
+    .car-card { transition: border-color 0.15s, box-shadow 0.15s; }
+    .car-num { background: #fff; color: #111; border-radius: 5px; padding: 2px 6px; font-size: 15px; min-width: 34px; }
+    [data-drag] { cursor: grab; }
+    [data-drag].dragging { opacity: .35; }
+    .drop-ok { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(229,57,53,.35); background: rgba(229,57,53,.05); }
+
     /* ── Driver withdraw link ── */
     .btn-withdraw {
       margin-top: 14px; margin-left: 8px; padding: 9px 16px;
@@ -408,6 +480,11 @@
       .registry-body { padding: 12px; }
       .registry-table { font-size: 12px; }
       .registry-table th, .registry-table td { padding: 8px; }
+      .hero { padding: 28px 14px 24px; }
+      .hero-countdown { gap: 6px; }
+      .cd-block { width: 58px; padding: 10px 0 7px; }
+      .cd-num { font-size: 24px; }
+      .cd-sep { font-size: 22px; line-height: 46px; }
     }
   </style>
 </head>
@@ -741,6 +818,7 @@ function render() {
   const past     = races.filter(r => ts(r.dateEnd || r.dateStart || r.date) <  now);
 
   let html = '';
+  if (upcoming.length) html += heroBanner(upcoming[0]);
   if (upcoming.length) html += section('Upcoming Races', upcoming, false);
   if (past.length)     html += section('Past Races',     past,     true);
   root.innerHTML = html;
@@ -749,7 +827,59 @@ function render() {
   root.querySelectorAll('.race-card-header').forEach(h =>
     h.addEventListener('click', () => h.closest('.race-card').classList.toggle('expanded'))
   );
+  updateCountdown();
 }
+
+// ── Next-race hero ────────────────────────────────────────────────────────
+function heroBanner(race) {
+  const raceRegs = regs.filter(r => r.raceId === race.id);
+  const teams = (race.cars || []).length;
+  const start = ts(race.dateStart || race.date);
+  const end   = ts(race.dateEnd || race.dateStart || race.date);
+  return `
+  <div class="hero">
+    <div class="hero-kicker">Next Race</div>
+    <div class="hero-track">${esc(race.track)}</div>
+    ${race.format ? `<div class="hero-format">${esc(race.format)}</div>` : ''}
+    <div class="hero-date">${fmtDate(race.dateStart || race.date, race.dateEnd)}</div>
+    <div class="hero-countdown" id="heroCountdown" data-start="${start}" data-end="${end}">
+      ${['Days','Hrs','Min','Sec'].map(l =>
+        `<div class="cd-block"><div class="cd-num" data-cd="${l}">--</div><div class="cd-label">${l}</div></div>`
+      ).join('<div class="cd-sep">:</div>')}
+    </div>
+    <div class="hero-live" id="heroLive" style="display:none">🟢 Race in progress</div>
+    <div class="hero-stats">${raceRegs.length} driver${raceRegs.length !== 1 ? 's' : ''} registered${teams ? ` · ${teams} team${teams !== 1 ? 's' : ''}` : ''}</div>
+    <div class="hero-actions">
+      <button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register Now</button>
+      ${calButton(race.id)}
+    </div>
+  </div>`;
+}
+
+function updateCountdown() {
+  const el = document.getElementById('heroCountdown');
+  if (!el) return;
+  const start = +el.dataset.start;
+  const live  = document.getElementById('heroLive');
+  const now   = Date.now();
+  if (now >= start) {
+    el.style.display = 'none';
+    if (live) live.style.display = '';
+    return;
+  }
+  el.style.display = '';
+  if (live) live.style.display = 'none';
+  let diff = Math.floor((start - now) / 1000);
+  const d = Math.floor(diff / 86400); diff %= 86400;
+  const h = Math.floor(diff / 3600);  diff %= 3600;
+  const m = Math.floor(diff / 60), s = diff % 60;
+  const vals = { Days: d, Hrs: h, Min: m, Sec: s };
+  el.querySelectorAll('[data-cd]').forEach(n => {
+    const v = String(vals[n.dataset.cd]).padStart(2, '0');
+    if (n.textContent !== v) n.textContent = v;
+  });
+}
+setInterval(updateCountdown, 1000);
 
 function ts(fireTs) {
   if (!fireTs) return 0;
@@ -800,7 +930,7 @@ function raceCard(race, isPast) {
       <div class="cars-grid">${carsHtml}</div>
       ${tpMode && !isPast ? `<button class="btn-add-team" data-action="add-team" data-raceid="${race.id}">+ Add Team</button>` : ''}
       ${unassignedSection(race, raceRegs, isPast)}
-      ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button><button class="btn-withdraw" data-action="withdraw" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">Withdraw</button>` : ''}
+      ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button><button class="btn-withdraw" data-action="withdraw" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">Withdraw</button>${calButton(race.id)}` : ''}
       ${tpMode ? `<div class="race-actions">
         <button class="btn-edit-race" data-action="edit-race" data-raceid="${race.id}">✏ Edit Race</button>
         <button class="btn-results" data-action="enter-results" data-raceid="${race.id}">🏆 Enter Results</button>
@@ -814,12 +944,14 @@ function carCard(race, car, raceRegs, isPast) {
   const carRegs = raceRegs.filter(r => r.carId === car.id);
   const isFull  = carRegs.length >= car.maxDrivers;
 
+  const canDrag = tpMode && !isPast;
+
   let driversHtml = '';
   for (let i = 0; i < car.maxDrivers; i++) {
     const reg = carRegs[i];
     if (reg) {
       driversHtml += `
-        <div class="driver-entry">
+        <div class="driver-entry"${canDrag ? ` draggable="true" data-drag="${reg.id}"` : ''}>
           <span class="driver-num">${i + 1}</span>
           <div class="driver-info">
             <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
@@ -828,14 +960,14 @@ function carCard(race, car, raceRegs, isPast) {
           ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Unassign driver">✕</button>` : ''}
         </div>`;
     } else {
-      driversHtml += `<div class="open-slot">Open slot ${i + 1}</div>`;
+      driversHtml += `<div class="open-slot">${canDrag ? 'Open — drag a driver here' : `Open slot ${i + 1}`}</div>`;
     }
   }
 
   const canAssign = tpMode && !isFull && !isPast;
 
   return `
-  <div class="car-card">
+  <div class="car-card"${canDrag ? ` data-dropcar="${car.id}" data-droprace="${race.id}"` : ''}>
     <div class="car-header">
       <div class="car-num">#${car.number ?? car.label}</div>
       <div class="car-label">Team ${car.number ?? car.label}</div>
@@ -855,9 +987,9 @@ function carCard(race, car, raceRegs, isPast) {
 function unassignedSection(race, raceRegs, isPast) {
   const unassigned = raceRegs.filter(r => !r.carId);
   if (unassigned.length === 0 && !isPast) {
-    return `<div class="unassigned-section">
+    return `<div class="unassigned-section"${tpMode ? ` data-dropunassigned data-droprace="${race.id}"` : ''}>
       <div class="unassigned-label">Unassigned Drivers</div>
-      <div class="unassigned-empty">No unassigned drivers yet.</div>
+      <div class="unassigned-empty">${tpMode ? 'No unassigned drivers — drag one here to unassign.' : 'No unassigned drivers yet.'}</div>
     </div>`;
   }
   if (unassigned.length === 0) return '';
@@ -874,8 +1006,9 @@ function unassignedSection(race, raceRegs, isPast) {
     }
   }
 
+  const canDrag = tpMode && !isPast;
   const driverRow = reg => `
-    <div class="unassigned-driver">
+    <div class="unassigned-driver"${canDrag ? ` draggable="true" data-drag="${reg.id}"` : ''}>
       <div class="driver-info">
         <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
         <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
@@ -892,7 +1025,7 @@ function unassignedSection(race, raceRegs, isPast) {
   }
   solos.forEach(reg => { html += driverRow(reg); });
 
-  return `<div class="unassigned-section">
+  return `<div class="unassigned-section"${canDrag ? ` data-dropunassigned data-droprace="${race.id}"` : ''}>
     <div class="unassigned-label">Unassigned (${unassigned.length})</div>
     <div class="unassigned-list">${html}</div>
   </div>`;
@@ -919,6 +1052,18 @@ document.getElementById('root').addEventListener('click', e => {
   }
   const withdrawBtn = e.target.closest('[data-action="withdraw"]');
   if (withdrawBtn) openWithdraw(withdrawBtn.dataset.raceid, withdrawBtn.dataset.racetrack);
+  const calToggle = e.target.closest('[data-action="cal-toggle"]');
+  if (calToggle) {
+    const wrap = calToggle.closest('.cal-wrap');
+    const wasOpen = wrap.classList.contains('open');
+    closeCalMenus();
+    wrap.classList.toggle('open', !wasOpen);
+  }
+  const calAdd = e.target.closest('[data-action="cal-add"]');
+  if (calAdd) {
+    addToCalendar(calAdd.dataset.raceid, calAdd.dataset.cal);
+    closeCalMenus();
+  }
   if (remBtn) {
     removeReg(remBtn.dataset.regid);
   }
@@ -1516,6 +1661,131 @@ document.getElementById('submitResults').addEventListener('click', async () => {
   await updateDoc(doc(db, 'endurance_races', resultsRaceId), { results });
   btn.disabled = false; btn.textContent = 'Save Results';
   document.getElementById('resultsOverlay').style.display = 'none';
+});
+
+// ── Add to calendar ───────────────────────────────────────────────────────
+function calButton(raceId) {
+  return `<span class="cal-wrap">
+    <button class="btn-cal" data-action="cal-toggle" data-raceid="${raceId}">📅 Add to Calendar</button>
+    <div class="cal-menu">
+      <button data-action="cal-add" data-cal="google"  data-raceid="${raceId}">Google Calendar</button>
+      <button data-action="cal-add" data-cal="outlook" data-raceid="${raceId}">Outlook.com</button>
+      <button data-action="cal-add" data-cal="office"  data-raceid="${raceId}">Office 365</button>
+      <button data-action="cal-add" data-cal="ics"     data-raceid="${raceId}">Apple / .ics file</button>
+    </div>
+  </span>`;
+}
+
+function closeCalMenus() {
+  document.querySelectorAll('.cal-wrap.open').forEach(w => w.classList.remove('open'));
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.cal-wrap')) closeCalMenus();
+});
+
+function icsStamp(d) {
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+function icsEscape(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n');
+}
+
+function addToCalendar(raceId, type) {
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+  const start = new Date(ts(race.dateStart || race.date));
+  const end   = race.dateEnd ? new Date(ts(race.dateEnd)) : new Date(start.getTime() + 3 * 3600e3);
+  const title   = `OpMo Endurance — ${race.track}${race.format ? ` (${race.format})` : ''}`;
+  const details = `OpMo Endurance race. Entry list & registration: ${location.href}`;
+
+  if (type === 'google') {
+    window.open(
+      `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+      `&text=${encodeURIComponent(title)}&dates=${icsStamp(start)}/${icsStamp(end)}` +
+      `&details=${encodeURIComponent(details)}&location=${encodeURIComponent(race.track)}`,
+      '_blank');
+  } else if (type === 'outlook' || type === 'office') {
+    const base = type === 'outlook' ? 'https://outlook.live.com' : 'https://outlook.office.com';
+    window.open(
+      `${base}/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent` +
+      `&subject=${encodeURIComponent(title)}&startdt=${encodeURIComponent(start.toISOString())}` +
+      `&enddt=${encodeURIComponent(end.toISOString())}&body=${encodeURIComponent(details)}` +
+      `&location=${encodeURIComponent(race.track)}`,
+      '_blank');
+  } else {
+    const ics = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//OpMo Endurance//EN', 'BEGIN:VEVENT',
+      `UID:${raceId}@opmo-endurance`, `DTSTAMP:${icsStamp(new Date())}`,
+      `DTSTART:${icsStamp(start)}`, `DTEND:${icsStamp(end)}`,
+      `SUMMARY:${icsEscape(title)}`, `DESCRIPTION:${icsEscape(details)}`,
+      `LOCATION:${icsEscape(race.track)}`,
+      'END:VEVENT', 'END:VCALENDAR'
+    ].join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `OpMo_${race.track.replace(/\W+/g, '_')}.ics`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}
+
+// ── Drag-and-drop assignment (TP) ─────────────────────────────────────────
+let dragRegId = null;
+const rootEl = document.getElementById('root');
+
+rootEl.addEventListener('dragstart', e => {
+  const el = e.target.closest('[data-drag]');
+  if (!el) return;
+  dragRegId = el.dataset.drag;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragRegId);
+  el.classList.add('dragging');
+});
+rootEl.addEventListener('dragend', () => {
+  dragRegId = null;
+  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.drop-ok').forEach(el => el.classList.remove('drop-ok'));
+});
+
+function dropTargetFor(e) {
+  if (!tpMode || !dragRegId) return null;
+  const reg = regs.find(r => r.id === dragRegId);
+  if (!reg) return null;
+
+  const carEl = e.target.closest('[data-dropcar]');
+  if (carEl && carEl.dataset.droprace === reg.raceId) {
+    const carId = carEl.dataset.dropcar;
+    if (reg.carId === carId) return null;
+    const race  = races.find(r => r.id === reg.raceId);
+    const car   = (race?.cars || []).find(c => c.id === carId);
+    const count = regs.filter(r => r.raceId === reg.raceId && r.carId === carId).length;
+    if (!car || count >= (car.maxDrivers || 2)) return null;
+    return { el: carEl, carId };
+  }
+  const poolEl = e.target.closest('[data-dropunassigned]');
+  if (poolEl && poolEl.dataset.droprace === reg.raceId && reg.carId) {
+    return { el: poolEl, carId: null };
+  }
+  return null;
+}
+
+rootEl.addEventListener('dragover', e => {
+  const t = dropTargetFor(e);
+  document.querySelectorAll('.drop-ok').forEach(el => { if (el !== t?.el) el.classList.remove('drop-ok'); });
+  if (t) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    t.el.classList.add('drop-ok');
+  }
+});
+rootEl.addEventListener('drop', async e => {
+  const t = dropTargetFor(e);
+  if (!t) return;
+  e.preventDefault();
+  const regId = dragRegId;
+  dragRegId = null;
+  await updateDoc(doc(db, 'endurance_registrations', regId), { carId: t.carId });
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
