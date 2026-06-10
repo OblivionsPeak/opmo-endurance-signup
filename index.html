@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- xlsx-js-style: SheetJS-compatible build that supports cell colors -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <style>
     :root {
       --bg:      #0d0d0d;
@@ -359,7 +360,12 @@
       .drag-hint { display: none !important; }
       .unassigned-empty { display: none !important; }
       body { background: #fff !important; color: #000 !important; }
-      .race-card { border: 1px solid #ccc !important; background: #fff !important; page-break-inside: avoid; margin-bottom: 16px; }
+      .race-card { border: 1px solid #ccc !important; background: #fff !important; page-break-inside: auto; margin-bottom: 16px; }
+      .car-card, .group-cluster, .unassigned-driver { page-break-inside: avoid; }
+      .cars-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+      .driver-name, .driver-iracing, .car-label, .race-track {
+        white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+      }
       .race-card-header { background: #f5f5f5 !important; }
       .race-track { color: #000 !important; }
       .race-date, .race-badge, .car-label, .driver-name, .driver-iracing,
@@ -372,7 +378,11 @@
       .group-cluster { border-color: #ddd !important; background: #fafafa !important; }
       .group-cluster-header { background: #f0f0f0 !important; color: #555 !important; }
       .tp-code { display: none !important; }
-      .affil-badge { color: #333 !important; background: #f0f0f0 !important; border-color: #ccc !important; }
+      .affil-badge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .affil-beneficiary { background: #e8f5e9 !important; color: #2e7d32 !important; border-color: #a5d6a7 !important; }
+      .affil-veteran     { background: #e3f2fd !important; color: #1565c0 !important; border-color: #90caf9 !important; }
+      .affil-supporter   { background: #ffebee !important; color: #c62828 !important; border-color: #ef9a9a !important; }
+      .affil-vip         { background: #f3e5f5 !important; color: #6a1b9a !important; border-color: #ce93d8 !important; }
       .registry-overlay { display: none !important; }
       main { padding: 12px !important; }
     }
@@ -505,6 +515,7 @@
     </div>
   </div>
   <div class="header-right">
+    <button class="btn-export" id="resultsViewBtn">🏆 Race Results</button>
     <button class="btn-registry" id="registryBtn">👥 Driver Registry</button>
     <button class="btn-export" id="exportBtn">⬇ Roster PDF</button>
     <button class="btn-xls" id="exportXlsBtn">⬇ Roster XLS</button>
@@ -574,6 +585,17 @@
       <tbody id="registryBody"></tbody>
     </table>
   </div>
+</div>
+
+<!-- ══ RACE RESULTS VIEW ══ -->
+<div class="registry-overlay" id="resultsViewOverlay">
+  <div class="registry-header">
+    <h2>Race Results</h2>
+    <button class="btn-export" id="resultsViewPdfBtn">⬇ PDF</button>
+    <button class="btn-xls" id="resultsViewXlsBtn">⬇ XLS</button>
+    <button class="btn-secondary" id="closeResultsView" style="padding:7px 16px;font-size:13px">✕ Close</button>
+  </div>
+  <div class="registry-body" id="resultsViewBody"></div>
 </div>
 
 <!-- ══ RESULTS MODAL (TP only) ══ -->
@@ -1544,12 +1566,14 @@ document.getElementById('registryPdfBtn').addEventListener('click', () => {
     printWin.document.write(`
       <html><head><title>Driver Registry — OpMo Endurance</title>
       <style>
-        body { font-family: sans-serif; font-size: 13px; color: #000; }
+        body { font-family: sans-serif; font-size: 13px; color: #000; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         h2 { margin-bottom: 16px; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 8px 10px; background: #f0f0f0; border-bottom: 2px solid #ccc; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
-        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+        tr { page-break-inside: avoid; }
         tr:nth-child(even) td { background: #fafafa; }
+        .chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 1px solid; white-space: nowrap; }
       </style></head><body>
       <h2>OpMo Endurance — Driver Registry</h2>
       <table>
@@ -1557,7 +1581,7 @@ document.getElementById('registryPdfBtn').addEventListener('click', () => {
         <tbody>${buildRegistry().map((d, i) => `
           <tr>
             <td>${i + 1}</td><td>${esc(d.name)}</td><td>${esc(d.iracing)}</td>
-            <td>${esc(d.car)}</td><td>${esc(d.affiliation)}</td>
+            <td>${esc(d.car)}</td><td>${affilPrintChip(d.affiliation)}</td>
             <td>${[...d.raceIds].map(raceNameById).join(', ')}</td>
           </tr>`).join('')}
         </tbody>
@@ -1586,6 +1610,8 @@ document.getElementById('exportXlsBtn').addEventListener('click', () => {
     }
   }
   const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [22, 12, 14, 16, 20, 20, 28, 30].map(w => ({ wch: w }));
+  styleXlsSheet(ws, rows, 7);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Race Roster');
   XLSX.writeFile(wb, 'OpMo_Endurance_Roster.xlsx');
@@ -1597,6 +1623,8 @@ document.getElementById('registryXlsBtn').addEventListener('click', () => {
     rows.push([i + 1, d.name, d.iracing, d.car, d.affiliation, [...d.raceIds].map(raceNameById).join(', ')]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [4, 22, 20, 28, 30, 40].map(w => ({ wch: w }));
+  styleXlsSheet(ws, rows, 4);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Driver Registry');
   XLSX.writeFile(wb, 'OpMo_Endurance_DriverRegistry.xlsx');
@@ -1620,10 +1648,20 @@ function openResults(raceId) {
   resultsRaceId = raceId;
   document.getElementById('resultsTitle').textContent = `Results — ${race.track}`;
   document.getElementById('resultsError').classList.remove('show');
+  const raceRegs = regs.filter(r => r.raceId === raceId);
   document.getElementById('resultsFields').innerHTML = (race.cars || [])
     .sort((a, b) => (a.number || 0) - (b.number || 0))
     .map(car => {
       const r = race.results?.[car.id] || {};
+      const carRegs = raceRegs.filter(rr => rr.carId === car.id);
+      const lapRows = carRegs.map(reg => `
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(reg.name)}</div>
+          <input type="number" min="0" max="9999" placeholder="Laps"
+            data-regid="${reg.id}" value="${reg.laps ?? ''}"
+            style="width:84px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);font-size:14px;text-align:center;outline:none"
+            class="result-lap-input" />
+        </div>`).join('');
       return `
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px">Team #${car.number ?? car.label}</div>
@@ -1645,6 +1683,7 @@ function openResults(raceId) {
               class="result-input" />
           </div>
         </div>
+        ${lapRows ? `<div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-top:12px">Driver Laps</div>${lapRows}` : ''}
       </div>`;
     }).join('');
   document.getElementById('resultsOverlay').style.display = 'flex';
@@ -1663,9 +1702,24 @@ document.getElementById('submitResults').addEventListener('click', async () => {
     if (!results[inp.dataset.carid]) results[inp.dataset.carid] = {};
     results[inp.dataset.carid][inp.dataset.field] = +val;
   }
+
+  // Per-driver lap totals live on the registration docs
+  const lapWrites = [];
+  for (const inp of document.querySelectorAll('.result-lap-input')) {
+    const val = inp.value.trim();
+    const reg = regs.find(r => r.id === inp.dataset.regid);
+    const laps = val === '' ? null : +val;
+    if (reg && (reg.laps ?? null) !== laps) {
+      lapWrites.push(updateDoc(doc(db, 'endurance_registrations', inp.dataset.regid), { laps }));
+    }
+  }
+
   const btn = document.getElementById('submitResults');
   btn.disabled = true; btn.textContent = 'Saving…';
-  await updateDoc(doc(db, 'endurance_races', resultsRaceId), { results });
+  await Promise.all([
+    updateDoc(doc(db, 'endurance_races', resultsRaceId), { results }),
+    ...lapWrites,
+  ]);
   btn.disabled = false; btn.textContent = 'Save Results';
   document.getElementById('resultsOverlay').style.display = 'none';
 });
@@ -1795,6 +1849,189 @@ rootEl.addEventListener('drop', async e => {
   await updateDoc(doc(db, 'endurance_registrations', regId), { carId: t.carId });
 });
 
+// ── Race Results view ─────────────────────────────────────────────────────
+function buildResultsData() {
+  return races
+    .filter(r => r.results && Object.keys(r.results).length)
+    .sort((a, b) => ts(b.dateStart || b.date) - ts(a.dateStart || a.date))
+    .map(race => {
+      const raceRegs = regs.filter(rr => rr.raceId === race.id);
+      const teams = (race.cars || [])
+        .map(car => ({
+          number:  car.number ?? car.label,
+          start:   race.results?.[car.id]?.start  ?? null,
+          finish:  race.results?.[car.id]?.finish ?? null,
+          drivers: raceRegs.filter(rr => rr.carId === car.id),
+        }))
+        .filter(t => t.drivers.length || t.start || t.finish)
+        .sort((a, b) => (a.finish ?? 999) - (b.finish ?? 999));
+      return { race, teams };
+    })
+    .filter(x => x.teams.length);
+}
+
+const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
+function finishLabel(finish) {
+  if (!finish) return 'DNF';
+  return MEDALS[finish] ? `${MEDALS[finish]} P${finish}` : `P${finish}`;
+}
+
+function openResultsView() {
+  const data = buildResultsData();
+  const body = document.getElementById('resultsViewBody');
+  if (!data.length) {
+    body.innerHTML = '<div class="empty"><div class="e-icon">🏆</div><p>No race results entered yet. The team principal can add them via <strong>Enter Results</strong> on each race.</p></div>';
+  } else {
+    body.innerHTML = data.map(({ race, teams }) => `
+      <div class="section-label" style="margin-top:8px">${esc(race.track)}${race.format ? ` · ${esc(race.format)}` : ''} — ${fmtDate(race.dateStart || race.date, race.dateEnd)}</div>
+      <table class="registry-table" style="margin-bottom:28px">
+        <thead><tr>
+          <th>Finish</th><th>Start</th><th>Team</th><th>Driver</th><th>iRacing Username</th><th>Car</th><th>Affiliation</th><th>Laps</th>
+        </tr></thead>
+        <tbody>${teams.map(t => t.drivers.length ? t.drivers.map((d, i) => `
+          <tr>
+            ${i === 0 ? `<td rowspan="${t.drivers.length}" style="font-weight:700">${finishLabel(t.finish)}</td>
+            <td rowspan="${t.drivers.length}" style="color:var(--muted)">${t.start ? `P${t.start}` : '—'}</td>
+            <td rowspan="${t.drivers.length}" style="font-weight:700">#${esc(String(t.number))}</td>` : ''}
+            <td>${esc(d.name)}</td>
+            <td style="color:var(--muted)">${esc(d.iracing)}</td>
+            <td style="font-size:13px">${esc(d.car || '—')}</td>
+            <td>${affiliBadge(d.affiliation)}</td>
+            <td style="font-weight:600">${d.laps ?? '—'}</td>
+          </tr>`).join('') : `
+          <tr>
+            <td style="font-weight:700">${finishLabel(t.finish)}</td>
+            <td style="color:var(--muted)">${t.start ? `P${t.start}` : '—'}</td>
+            <td style="font-weight:700">#${esc(String(t.number))}</td>
+            <td colspan="5" style="color:var(--muted);font-style:italic">No drivers recorded</td>
+          </tr>`).join('')}</tbody>
+      </table>`).join('');
+  }
+  document.getElementById('resultsViewOverlay').classList.add('open');
+}
+
+document.getElementById('resultsViewBtn').addEventListener('click', openResultsView);
+document.getElementById('closeResultsView').addEventListener('click', () => {
+  document.getElementById('resultsViewOverlay').classList.remove('open');
+});
+
+document.getElementById('resultsViewPdfBtn').addEventListener('click', () => {
+  const data = buildResultsData();
+  if (!data.length) { alert('No race results entered yet.'); return; }
+  const printWin = window.open('', '_blank');
+  printWin.document.write(`
+    <html><head><title>Race Results — OpMo Endurance</title>
+    <style>
+      body { font-family: sans-serif; font-size: 13px; color: #000; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      h2 { margin-bottom: 4px; }
+      h3 { margin: 22px 0 8px; font-size: 15px; }
+      .sub { color: #666; font-size: 12px; margin: 0 0 8px; }
+      table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+      tr { page-break-inside: avoid; }
+      th { text-align: left; padding: 7px 9px; background: #f0f0f0; border-bottom: 2px solid #ccc; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+      td { padding: 7px 9px; border-bottom: 1px solid #eee; vertical-align: top; }
+      .chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+      .pos1 { background: #fff8e1; } .pos2 { background: #f5f5f5; } .pos3 { background: #fbe9e7; }
+    </style></head><body>
+    <h2>OpMo Endurance — Race Results</h2>
+    ${data.map(({ race, teams }) => `
+      <h3>${esc(race.track)}${race.format ? ` · ${esc(race.format)}` : ''}</h3>
+      <p class="sub">${fmtDate(race.dateStart || race.date, race.dateEnd)}</p>
+      <table>
+        <thead><tr><th>Finish</th><th>Start</th><th>Team</th><th>Driver</th><th>iRacing Username</th><th>Car</th><th>Affiliation</th><th>Laps</th></tr></thead>
+        <tbody>${teams.map(t => {
+          const rowCls = t.finish >= 1 && t.finish <= 3 ? `pos${t.finish}` : '';
+          return t.drivers.length ? t.drivers.map((d, i) => `
+          <tr class="${rowCls}">
+            ${i === 0 ? `<td rowspan="${t.drivers.length}" style="font-weight:700">${finishLabel(t.finish)}</td>
+            <td rowspan="${t.drivers.length}">${t.start ? `P${t.start}` : '—'}</td>
+            <td rowspan="${t.drivers.length}" style="font-weight:700">#${esc(String(t.number))}</td>` : ''}
+            <td>${esc(d.name)}</td><td>${esc(d.iracing)}</td><td>${esc(d.car || '—')}</td>
+            <td>${affilPrintChip(d.affiliation)}</td><td style="font-weight:600">${d.laps ?? '—'}</td>
+          </tr>`).join('') : `
+          <tr class="${rowCls}">
+            <td style="font-weight:700">${finishLabel(t.finish)}</td><td>${t.start ? `P${t.start}` : '—'}</td>
+            <td style="font-weight:700">#${esc(String(t.number))}</td>
+            <td colspan="5" style="color:#888;font-style:italic">No drivers recorded</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`).join('')}
+    </body></html>`);
+  printWin.document.close();
+  printWin.print();
+});
+
+document.getElementById('resultsViewXlsBtn').addEventListener('click', () => {
+  const data = buildResultsData();
+  if (!data.length) { alert('No race results entered yet.'); return; }
+  const rows = [['Race', 'Date', 'Team', 'Start', 'Finish', 'Driver', 'iRacing Username', 'Car', 'Affiliation', 'Laps']];
+  const finishByRow = [];
+  for (const { race, teams } of data) {
+    const dateStr = new Date(ts(race.dateStart || race.date)).toLocaleDateString('en-US');
+    for (const t of teams) {
+      const drivers = t.drivers.length ? t.drivers : [null];
+      for (const d of drivers) {
+        rows.push([
+          race.track, dateStr, `#${t.number}`, t.start ?? '', t.finish ?? 'DNF',
+          d ? d.name : '', d ? d.iracing : '', d ? (d.car || '') : '',
+          d ? (d.affiliation || '') : '', d ? (d.laps ?? '') : '',
+        ]);
+        finishByRow.push(t.finish);
+      }
+    }
+  }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [22, 12, 8, 7, 8, 22, 20, 28, 30, 7].map(w => ({ wch: w }));
+  styleXlsSheet(ws, rows, 8);
+  const MEDAL_FILLS = { 1: ['FFF3CD', '7A5A00'], 2: ['EEEEEE', '555555'], 3: ['FBE5D6', '8B4A2B'] };
+  for (let r = 1; r < rows.length; r++) {
+    const f = finishByRow[r - 1];
+    const m = MEDAL_FILLS[f];
+    const cell = ws[XLSX.utils.encode_cell({ r, c: 4 })];
+    if (cell && m) cell.s = { fill: { patternType: 'solid', fgColor: { rgb: m[0] } }, font: { color: { rgb: m[1] }, bold: true } };
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Race Results');
+  XLSX.writeFile(wb, 'OpMo_Endurance_Results.xlsx');
+});
+
+// ── Affiliation colours (screen badges are in CSS; these drive print + XLS) ──
+const AFFIL_COLORS = {
+  'Operation Motorsport Beneficiary': { bg:'#e8f5e9', fg:'#2e7d32', border:'#a5d6a7', short:'Beneficiary' },
+  'Veteran':                          { bg:'#e3f2fd', fg:'#1565c0', border:'#90caf9', short:'Veteran' },
+  'Veteran Supporter':                { bg:'#ffebee', fg:'#c62828', border:'#ef9a9a', short:'Supporter' },
+  'VIP':                              { bg:'#f3e5f5', fg:'#6a1b9a', border:'#ce93d8', short:'VIP' },
+};
+
+function affilPrintChip(affiliation) {
+  const c = AFFIL_COLORS[affiliation];
+  if (!c) return esc(affiliation || '—');
+  return `<span class="chip" style="background:${c.bg};color:${c.fg};border-color:${c.border}">${c.short}</span>`;
+}
+
+function affilXlsStyle(affiliation) {
+  const c = AFFIL_COLORS[affiliation];
+  if (!c) return null;
+  return {
+    fill: { patternType: 'solid', fgColor: { rgb: c.bg.slice(1).toUpperCase() } },
+    font: { color: { rgb: c.fg.slice(1).toUpperCase() }, bold: true },
+  };
+}
+
+// Bold dark header row + coloured affiliation column on a generated sheet
+function styleXlsSheet(ws, rows, affilCol) {
+  for (let c = 0; c < rows[0].length; c++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c })];
+    if (cell) cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '1E1E1E' } } };
+  }
+  if (affilCol == null) return;
+  for (let r = 1; r < rows.length; r++) {
+    const cell = ws[XLSX.utils.encode_cell({ r, c: affilCol })];
+    const st = cell && affilXlsStyle(rows[r][affilCol]);
+    if (st) cell.s = st;
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 function affiliBadge(affiliation) {
   if (!affiliation || affiliation === '—') return '';
@@ -1833,7 +2070,7 @@ document.addEventListener('keydown', e => {
   document.querySelectorAll('.overlay').forEach(ov => {
     if (ov.style.display === 'flex') ov.style.display = 'none';
   });
-  document.getElementById('registryOverlay').classList.remove('open');
+  document.querySelectorAll('.registry-overlay').forEach(ov => ov.classList.remove('open'));
 });
 </script>
 </body>
