@@ -1656,7 +1656,23 @@ function openResults(raceId) {
   document.getElementById('resultsError').classList.remove('show');
   document.getElementById('csvReport').style.display = 'none';
   const raceRegs = regs.filter(r => r.raceId === raceId);
-  document.getElementById('resultsFields').innerHTML = (race.cars || [])
+  const carIdSet = new Set((race.cars || []).map(c => c.id));
+  // Drivers not on any current team still get lap inputs (positions need a team)
+  const looseRegs = raceRegs.filter(rr => !rr.carId || !carIdSet.has(rr.carId));
+  const looseBlock = looseRegs.length ? `
+      <div style="background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:12px 14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">Unassigned Drivers</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Laps can be recorded now — start/finish positions apply once they're assigned to a team.</div>
+        ${looseRegs.map(reg => `
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(reg.name)}</div>
+          <input type="number" min="0" max="9999" placeholder="Laps"
+            data-regid="${reg.id}" value="${reg.laps ?? ''}"
+            style="width:84px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);font-size:14px;text-align:center;outline:none"
+            class="result-lap-input" />
+        </div>`).join('')}
+      </div>` : '';
+  document.getElementById('resultsFields').innerHTML = looseBlock + (race.cars || [])
     .sort((a, b) => (a.number || 0) - (b.number || 0))
     .map(car => {
       const r = race.results?.[car.id] || {};
@@ -1864,12 +1880,13 @@ document.getElementById('importCsvBtn').addEventListener('click', () => {
 document.getElementById('csvFileInput').addEventListener('change', async e => {
   const files = [...e.target.files];
   if (!files.length) return;
-  let matched = 0, unmatched = [], badFiles = [];
+  let matched = 0, unmatched = [], badFiles = [], posSkipped = [];
   for (const f of files) {
     const res = importIracingCsv(await f.text());
     if (res === null) { badFiles.push(f.name); continue; }
     matched += res.matched;
     unmatched.push(...res.unmatched);
+    posSkipped.push(...res.posSkipped);
   }
   const rep = document.getElementById('csvReport');
   rep.style.display = 'block';
@@ -1878,6 +1895,9 @@ document.getElementById('csvFileInput').addEventListener('change', async e => {
   if (unmatched.length) {
     const shown = unmatched.slice(0, 10).map(esc).join(', ');
     probs.push(`No registration match for: ${shown}${unmatched.length > 10 ? ` +${unmatched.length - 10} more` : ''}`);
+  }
+  if (posSkipped.length) {
+    probs.push(`Laps filled but positions skipped (not assigned to a team): ${posSkipped.map(esc).join(', ')}`);
   }
   if (probs.length) {
     rep.style.background = 'rgba(229,57,53,.08)'; rep.style.border = '1px solid rgba(229,57,53,.25)'; rep.style.color = '#f0a0a0';
@@ -1929,7 +1949,7 @@ function importIracingCsv(text) {
   const cName  = hdr.findIndex(h => h === 'name' || h === 'driver' || h === 'display name');
 
   const raceRegs = regs.filter(r => r.raceId === resultsRaceId);
-  let matched = 0; const unmatched = [];
+  let matched = 0; const unmatched = [], posSkipped = [];
 
   for (const row of rows.slice(hi + 1)) {
     const name = (row[cName] || '').trim();
@@ -1943,16 +1963,18 @@ function importIracingCsv(text) {
       const lapInp = document.querySelector(`.result-lap-input[data-regid="${reg.id}"]`);
       if (lapInp && !isNaN(laps)) lapInp.value = laps;
     }
-    if (reg.carId) {
+    const finInp = reg.carId && document.querySelector(`.result-input[data-carid="${reg.carId}"][data-field="finish"]`);
+    const stInp  = reg.carId && document.querySelector(`.result-input[data-carid="${reg.carId}"][data-field="start"]`);
+    if (finInp || stInp) {
       const fin = cFin   >= 0 ? parseInt(row[cFin],   10) : NaN;
       const st  = cStart >= 0 ? parseInt(row[cStart], 10) : NaN;
-      const finInp = document.querySelector(`.result-input[data-carid="${reg.carId}"][data-field="finish"]`);
-      const stInp  = document.querySelector(`.result-input[data-carid="${reg.carId}"][data-field="start"]`);
       if (finInp && !isNaN(fin)) finInp.value = fin;
       if (stInp  && !isNaN(st))  stInp.value  = st;
+    } else {
+      posSkipped.push(reg.name);
     }
   }
-  return { matched, unmatched };
+  return { matched, unmatched, posSkipped };
 }
 
 // ── Race Results view ─────────────────────────────────────────────────────
