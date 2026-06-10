@@ -351,7 +351,12 @@
     @media print {
       header, .fab, .btn-tp, .btn-export, .btn-race-register, .btn-delete-race,
       .btn-withdraw, .btn-remove, .car-footer, .overlay,
-      .hero, .cal-wrap { display: none !important; }
+      .hero, .cal-wrap, .race-actions, .btn-add-team, .expand-icon { display: none !important; }
+      .car-card::before { display: none !important; }
+      .car-num { background: none !important; color: #000 !important; padding: 0 !important; }
+      .race-card-header { cursor: default; }
+      .drag-hint { display: none !important; }
+      .unassigned-empty { display: none !important; }
       body { background: #fff !important; color: #000 !important; }
       .race-card { border: 1px solid #ccc !important; background: #fff !important; page-break-inside: avoid; margin-bottom: 16px; }
       .race-card-header { background: #f5f5f5 !important; }
@@ -960,7 +965,7 @@ function carCard(race, car, raceRegs, isPast) {
           ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Unassign driver">✕</button>` : ''}
         </div>`;
     } else {
-      driversHtml += `<div class="open-slot">${canDrag ? 'Open — drag a driver here' : `Open slot ${i + 1}`}</div>`;
+      driversHtml += `<div class="open-slot">Open slot ${i + 1}${canDrag ? '<span class="drag-hint"> — drag a driver here</span>' : ''}</div>`;
     }
   }
 
