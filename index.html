@@ -603,8 +603,14 @@
   <div class="modal" style="max-width:440px">
     <h2 id="resultsTitle">Race Results</h2>
     <div class="form-error" id="resultsError"></div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">Enter the finishing position for each team. Leave blank if a team did not finish.</p>
-    <div id="resultsFields" style="display:flex;flex-direction:column;gap:12px"></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Enter the finishing position for each team. Leave blank if a team did not finish.</p>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <button class="btn-secondary" id="importCsvBtn" style="font-size:12px;padding:8px 14px">📄 Import iRacing CSV</button>
+      <span style="font-size:11px;color:var(--muted)">Fills positions &amp; laps automatically — import one file per split.</span>
+    </div>
+    <div id="csvReport" style="display:none;font-size:12px;border-radius:6px;padding:8px 12px;margin-bottom:6px;line-height:1.5"></div>
+    <input type="file" id="csvFileInput" accept=".csv,text/csv" multiple style="display:none" />
+    <div id="resultsFields" style="display:flex;flex-direction:column;gap:12px;margin-top:8px"></div>
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelResults">Cancel</button>
       <button class="btn-primary" id="submitResults">Save Results</button>
@@ -1648,6 +1654,7 @@ function openResults(raceId) {
   resultsRaceId = raceId;
   document.getElementById('resultsTitle').textContent = `Results — ${race.track}`;
   document.getElementById('resultsError').classList.remove('show');
+  document.getElementById('csvReport').style.display = 'none';
   const raceRegs = regs.filter(r => r.raceId === raceId);
   document.getElementById('resultsFields').innerHTML = (race.cars || [])
     .sort((a, b) => (a.number || 0) - (b.number || 0))
@@ -1848,6 +1855,105 @@ rootEl.addEventListener('drop', async e => {
   dragRegId = null;
   await updateDoc(doc(db, 'endurance_registrations', regId), { carId: t.carId });
 });
+
+// ── iRacing results CSV import (fills the Enter Results form) ─────────────
+document.getElementById('importCsvBtn').addEventListener('click', () => {
+  document.getElementById('csvFileInput').click();
+});
+
+document.getElementById('csvFileInput').addEventListener('change', async e => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  let matched = 0, unmatched = [], badFiles = [];
+  for (const f of files) {
+    const res = importIracingCsv(await f.text());
+    if (res === null) { badFiles.push(f.name); continue; }
+    matched += res.matched;
+    unmatched.push(...res.unmatched);
+  }
+  const rep = document.getElementById('csvReport');
+  rep.style.display = 'block';
+  const probs = [];
+  if (badFiles.length) probs.push(`Unrecognised format: ${badFiles.map(esc).join(', ')}`);
+  if (unmatched.length) {
+    const shown = unmatched.slice(0, 10).map(esc).join(', ');
+    probs.push(`No registration match for: ${shown}${unmatched.length > 10 ? ` +${unmatched.length - 10} more` : ''}`);
+  }
+  if (probs.length) {
+    rep.style.background = 'rgba(229,57,53,.08)'; rep.style.border = '1px solid rgba(229,57,53,.25)'; rep.style.color = '#f0a0a0';
+    rep.innerHTML = `Filled ${matched} registered driver${matched !== 1 ? 's' : ''}. ${probs.join('. ')}.`;
+  } else {
+    rep.style.background = 'rgba(67,160,71,.08)'; rep.style.border = '1px solid rgba(67,160,71,.3)'; rep.style.color = '#81c784';
+    rep.textContent = `Filled ${matched} driver${matched !== 1 ? 's' : ''} from ${files.length} file${files.length !== 1 ? 's' : ''}. Review the values, then hit Save Results.`;
+  }
+  e.target.value = '';
+});
+
+function parseCsv(text) {
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += ch;
+    }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cur); cur = '';
+      if (row.length > 1 || row[0].trim() !== '') rows.push(row);
+      row = [];
+    }
+    else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
+// Reads an iRacing session-results CSV and fills the open Enter Results form.
+// Merge semantics: only drivers/teams present in the file are touched, so one
+// file per split can be imported in sequence. Returns null if the file
+// doesn't look like an iRacing results export.
+function importIracingCsv(text) {
+  const rows = parseCsv(text);
+  const hi = rows.findIndex(r =>
+    r.some(c => /fin(ish)?\s*pos/i.test(c)) && r.some(c => /^(name|driver|display ?name)$/i.test(c.trim())));
+  if (hi < 0) return null;
+
+  const hdr = rows[hi].map(c => c.trim().toLowerCase());
+  const col = re => hdr.findIndex(h => re.test(h));
+  const cFin   = col(/^fin(ish)?\s*pos/);
+  const cStart = col(/^start(ing)?\s*pos/);
+  const cLaps  = col(/laps?\s*comp/);
+  const cName  = hdr.findIndex(h => h === 'name' || h === 'driver' || h === 'display name');
+
+  const raceRegs = regs.filter(r => r.raceId === resultsRaceId);
+  let matched = 0; const unmatched = [];
+
+  for (const row of rows.slice(hi + 1)) {
+    const name = (row[cName] || '').trim();
+    if (!name) continue;
+    const reg = raceRegs.find(r => r.iracing.trim().toLowerCase() === name.toLowerCase());
+    if (!reg) { unmatched.push(name); continue; }
+    matched++;
+
+    if (cLaps >= 0) {
+      const laps = parseInt(row[cLaps], 10);
+      const lapInp = document.querySelector(`.result-lap-input[data-regid="${reg.id}"]`);
+      if (lapInp && !isNaN(laps)) lapInp.value = laps;
+    }
+    if (reg.carId) {
+      const fin = cFin   >= 0 ? parseInt(row[cFin],   10) : NaN;
+      const st  = cStart >= 0 ? parseInt(row[cStart], 10) : NaN;
+      const finInp = document.querySelector(`.result-input[data-carid="${reg.carId}"][data-field="finish"]`);
+      const stInp  = document.querySelector(`.result-input[data-carid="${reg.carId}"][data-field="start"]`);
+      if (finInp && !isNaN(fin)) finInp.value = fin;
+      if (stInp  && !isNaN(st))  stInp.value  = st;
+    }
+  }
+  return { matched, unmatched };
+}
 
 // ── Race Results view ─────────────────────────────────────────────────────
 function buildResultsData() {
