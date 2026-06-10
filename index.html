@@ -21,7 +21,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
-      background-image: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url('./Spa-2.jpg');
+      background-image: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url('./Spa-2.webp');
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
@@ -249,29 +249,6 @@
     .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; transition: border-color 0.15s; }
     .btn-secondary:hover { border-color: #555; }
 
-    /* ── Car builder rows (inside Add Race modal) ── */
-    .car-builders { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-    .car-builder-row {
-      display: flex; align-items: center; gap: 10px;
-      background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 8px; padding: 10px 12px;
-    }
-    .team-num-label { font-size: 12px; color: var(--muted); flex-shrink: 0; font-weight: 600; }
-    .car-builder-row input[type="number"] { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; color: var(--text); font-size: 14px; text-align: center; outline: none; }
-    .car-builder-row input[type="number"]:focus { border-color: var(--accent); }
-    .car-builder-row .team-num-input { width: 64px; font-weight: 700; }
-    .car-builder-row .max-input { width: 52px; }
-    .max-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
-    .btn-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; flex-shrink: 0; }
-    .btn-del:hover { color: var(--accent2); }
-
-    .btn-add-car {
-      width: 100%; padding: 9px; background: none;
-      border: 1px dashed var(--border); border-radius: 8px;
-      color: var(--muted); font-size: 13px; cursor: pointer; transition: all 0.15s;
-    }
-    .btn-add-car:hover { border-color: var(--accent); color: var(--text); }
-
     /* ── Error / notice ── */
     .form-error {
       font-size: 12px; color: var(--accent2);
@@ -370,7 +347,7 @@
     /* ── Print styles ── */
     @media print {
       header, .fab, .btn-tp, .btn-export, .btn-race-register, .btn-delete-race,
-      .btn-remove, .car-footer, .tpOverlay, .overlay { display: none !important; }
+      .btn-withdraw, .btn-remove, .car-footer, .overlay { display: none !important; }
       body { background: #fff !important; color: #000 !important; }
       .race-card { border: 1px solid #ccc !important; background: #fff !important; page-break-inside: avoid; margin-bottom: 16px; }
       .race-card-header { background: #f5f5f5 !important; }
@@ -407,6 +384,31 @@
       transition: all 0.15s;
     }
     .btn-edit-race:hover { border-color: #888; color: var(--text); }
+
+    /* ── Driver withdraw link ── */
+    .btn-withdraw {
+      margin-top: 14px; margin-left: 8px; padding: 9px 16px;
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-withdraw:hover { border-color: var(--accent); color: var(--accent2); }
+
+    /* ── Mobile ── */
+    @media (max-width: 640px) {
+      header { flex-wrap: wrap; padding: 10px 12px; }
+      .header-right { margin-left: 0; width: 100%; flex-wrap: wrap; gap: 6px; }
+      .btn-tp, .btn-export, .btn-xls, .btn-registry { padding: 6px 10px; font-size: 11px; }
+      main { padding: 20px 10px 100px; }
+      .race-card-header { flex-wrap: wrap; padding: 14px; gap: 10px; }
+      .race-track { font-size: 15px; flex-basis: 100%; }
+      .race-meta { flex-direction: row; align-items: center; gap: 10px; margin-left: auto; }
+      .cars-grid { grid-template-columns: 1fr; }
+      .fab { bottom: 16px; right: 16px; padding: 12px 20px; font-size: 13px; }
+      .modal { padding: 20px; }
+      .registry-body { padding: 12px; }
+      .registry-table { font-size: 12px; }
+      .registry-table th, .registry-table td { padding: 8px; }
+    }
   </style>
 </head>
 <body>
@@ -629,15 +631,35 @@
   </div>
 </div>
 
-<!-- ══ GROUP CODE CONFIRMATION ══ -->
-<div class="overlay" id="groupCodeOverlay" style="display:none">
+<!-- ══ REGISTRATION CONFIRMATION ══ -->
+<div class="overlay" id="regSuccessOverlay" style="display:none">
   <div class="modal" style="max-width:360px;text-align:center">
-    <h2>You're registered!</h2>
-    <p style="font-size:13px;color:var(--muted);margin:12px 0 8px">Share this code with your teammates so they can join your group:</p>
-    <div class="group-code-display" id="groupCodeDisplay">----</div>
-    <div class="group-code-hint">They select "Join Group" when registering and enter this code.</div>
+    <h2>You're registered! 🏁</h2>
+    <p style="font-size:13px;color:var(--muted);margin:12px 0 8px" id="regSuccessMsg"></p>
+    <div id="regSuccessCodeWrap" style="display:none">
+      <p style="font-size:13px;color:var(--muted);margin:4px 0 8px">Share this code with your teammates so they can join your group:</p>
+      <div class="group-code-display" id="groupCodeDisplay">----</div>
+      <div class="group-code-hint">They select "Join Team" when registering and enter this code.</div>
+    </div>
     <div class="modal-actions" style="justify-content:center;margin-top:20px">
-      <button class="btn-primary" id="closeGroupCode">Got it</button>
+      <button class="btn-primary" id="closeRegSuccess">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WITHDRAW MODAL ══ -->
+<div class="overlay" id="withdrawOverlay" style="display:none">
+  <div class="modal" style="max-width:400px">
+    <h2 id="withdrawTitle">Withdraw from Race</h2>
+    <div class="form-error" id="withdrawError"></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">Enter the iRacing username you registered with to withdraw your entry.</p>
+    <div class="form-group">
+      <label>iRacing Username</label>
+      <input type="text" id="withdrawIracing" placeholder="Exact iRacing display name" autocomplete="off" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelWithdraw">Cancel</button>
+      <button class="btn-primary" id="submitWithdraw">Withdraw</button>
     </div>
   </div>
 </div>
@@ -661,8 +683,9 @@
 
 <script type="module">
 import { initializeApp }                                                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, doc, addDoc, deleteDoc, updateDoc,
+import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
          onSnapshot, serverTimestamp, query, orderBy }                       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 // ── Firebase ──────────────────────────────────────────────────────────────
 const app = initializeApp({
@@ -673,32 +696,26 @@ const app = initializeApp({
   messagingSenderId: "464083122390",
   appId:             "1:464083122390:web:12f78d594c8ea51fa1b177"
 });
-const db = getFirestore(app);
+const db   = getFirestore(app);
+const auth = getAuth(app);
+
+// Team Principal sign-in account. Create this user in the Firebase console
+// (Authentication → Users) — see FIREBASE-SETUP.md.
+const TP_EMAIL = 'tp@opmo-endurance.app';
 
 // ── State ─────────────────────────────────────────────────────────────────
 let races = [], regs = [];
-let pendingRaceId = null, pendingCarId = null, pendingCarLabel = null;
+let pendingRaceId = null;
 let pendingAssignCarId = null, pendingAssignRaceId = null, pendingAssignCarLabel = null;
 let pendingAssignSlots = 0;
-let carBuilders = [];
-let tpMode = sessionStorage.getItem('tpMode') === '1';
+let pendingWithdrawRaceId = null;
+let tpMode = false;
 let regGroupType = 'solo'; // 'solo' | 'create' | 'join'
 
 function genGroupCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   return Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
-
-// SHA-256 hash of the TP password — default is "opmo2025" — change by updating this hash
-const TP_HASH = '7c2fec5e7a1d0e3b8454692b59a66131141eb894278ae939486c7e934d7d9fce';
-
-async function sha256(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-// Preset car colours for quick selection
-const PRESET_COLORS = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#f9a825','#00acc1','#e91e63'];
 
 // ── Real-time listeners ───────────────────────────────────────────────────
 onSnapshot(query(collection(db, 'endurance_races'), orderBy('dateStart', 'asc')), snap => {
@@ -783,7 +800,7 @@ function raceCard(race, isPast) {
       <div class="cars-grid">${carsHtml}</div>
       ${tpMode && !isPast ? `<button class="btn-add-team" data-action="add-team" data-raceid="${race.id}">+ Add Team</button>` : ''}
       ${unassignedSection(race, raceRegs, isPast)}
-      ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button>` : ''}
+      ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button><button class="btn-withdraw" data-action="withdraw" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">Withdraw</button>` : ''}
       ${tpMode ? `<div class="race-actions">
         <button class="btn-edit-race" data-action="edit-race" data-raceid="${race.id}">✏ Edit Race</button>
         <button class="btn-results" data-action="enter-results" data-raceid="${race.id}">🏆 Enter Results</button>
@@ -900,6 +917,8 @@ document.getElementById('root').addEventListener('click', e => {
   if (regBtn) {
     openRegister(regBtn.dataset.raceid, regBtn.dataset.racetrack);
   }
+  const withdrawBtn = e.target.closest('[data-action="withdraw"]');
+  if (withdrawBtn) openWithdraw(withdrawBtn.dataset.raceid, withdrawBtn.dataset.racetrack);
   if (remBtn) {
     removeReg(remBtn.dataset.regid);
   }
@@ -953,7 +972,7 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   document.getElementById('raceDriversPerTeam').value = '2';
 });
 
-// ── TP Mode ───────────────────────────────────────────────────────────────
+// ── TP Mode (Firebase Auth) ───────────────────────────────────────────────
 function updateTpUI() {
   document.getElementById('tpBadge').classList.toggle('active', tpMode);
   document.getElementById('tpBtn').classList.toggle('active', tpMode);
@@ -961,13 +980,15 @@ function updateTpUI() {
   document.getElementById('registryBtn').classList.toggle('tp-visible', tpMode);
   render();
 }
-updateTpUI();
+
+onAuthStateChanged(auth, user => {
+  tpMode = !!user;
+  updateTpUI();
+});
 
 document.getElementById('tpBtn').addEventListener('click', () => {
   if (tpMode) {
-    tpMode = false;
-    sessionStorage.removeItem('tpMode');
-    updateTpUI();
+    signOut(auth);
   } else {
     document.getElementById('tpPassword').value = '';
     document.getElementById('tpError').classList.remove('show');
@@ -980,19 +1001,18 @@ document.getElementById('cancelTp').addEventListener('click', () => {
 });
 document.getElementById('tpOverlay').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('submitTp').click();
-  if (e.key === 'Escape') document.getElementById('tpOverlay').style.display = 'none';
 });
 document.getElementById('submitTp').addEventListener('click', async () => {
-  const pw = document.getElementById('tpPassword').value;
-  const hash = await sha256(pw);
-  if (hash !== TP_HASH) {
+  const pw  = document.getElementById('tpPassword').value;
+  const btn = document.getElementById('submitTp');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    await signInWithEmailAndPassword(auth, TP_EMAIL, pw);
+    document.getElementById('tpOverlay').style.display = 'none';
+  } catch (err) {
     showErr(document.getElementById('tpError'), 'Incorrect password.');
-    return;
   }
-  tpMode = true;
-  sessionStorage.setItem('tpMode', '1');
-  document.getElementById('tpOverlay').style.display = 'none';
-  updateTpUI();
+  btn.disabled = false; btn.textContent = 'Unlock';
 });
 
 // ── Register (driver self sign-up) ────────────────────────────────────────
@@ -1028,7 +1048,6 @@ document.getElementById('cancelReg').addEventListener('click', () => {
 });
 document.getElementById('registerOverlay').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('submitReg').click();
-  if (e.key === 'Escape') document.getElementById('registerOverlay').style.display = 'none';
 });
 document.getElementById('submitReg').addEventListener('click', async () => {
   const name    = document.getElementById('regName').value.trim();
@@ -1065,22 +1084,81 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   const btn = document.getElementById('submitReg');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  await addDoc(collection(db, 'endurance_registrations'), {
-    raceId: pendingRaceId, carId: null, groupId,
-    name, iracing, car, affiliation, timestamp: serverTimestamp()
-  });
+  // Deterministic doc ID (race + username) makes duplicate registration a
+  // doc overwrite, which the security rules reject — atomic dedupe.
+  const regId = `${pendingRaceId}_${regSlug(iracing)}`;
+  try {
+    await setDoc(doc(db, 'endurance_registrations', regId), {
+      raceId: pendingRaceId, carId: null, groupId,
+      name, iracing, car, affiliation, timestamp: serverTimestamp()
+    });
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Register';
+    showErr(errEl, 'That iRacing username is already registered for this race.');
+    return;
+  }
 
   btn.disabled = false; btn.textContent = 'Register';
   document.getElementById('registerOverlay').style.display = 'none';
 
+  const raceTrack = races.find(r => r.id === pendingRaceId)?.track || 'this race';
+  document.getElementById('regSuccessMsg').textContent =
+    `Your entry for ${raceTrack} has been recorded. The team principal will assign you to a car.`;
+  const codeWrap = document.getElementById('regSuccessCodeWrap');
   if (regGroupType === 'create' && groupId) {
     document.getElementById('groupCodeDisplay').textContent = groupId;
-    document.getElementById('groupCodeOverlay').style.display = 'flex';
+    codeWrap.style.display = '';
+  } else {
+    codeWrap.style.display = 'none';
   }
+  document.getElementById('regSuccessOverlay').style.display = 'flex';
 });
 
-document.getElementById('closeGroupCode').addEventListener('click', () => {
-  document.getElementById('groupCodeOverlay').style.display = 'none';
+function regSlug(iracing) {
+  return iracing.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+}
+
+document.getElementById('closeRegSuccess').addEventListener('click', () => {
+  document.getElementById('regSuccessOverlay').style.display = 'none';
+});
+
+// ── Withdraw (driver self-service) ────────────────────────────────────────
+function openWithdraw(raceId, raceTrack) {
+  pendingWithdrawRaceId = raceId;
+  document.getElementById('withdrawTitle').textContent = `Withdraw — ${raceTrack}`;
+  document.getElementById('withdrawError').classList.remove('show');
+  document.getElementById('withdrawIracing').value = '';
+  document.getElementById('withdrawOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('withdrawIracing').focus(), 50);
+}
+
+document.getElementById('cancelWithdraw').addEventListener('click', () => {
+  document.getElementById('withdrawOverlay').style.display = 'none';
+});
+document.getElementById('withdrawOverlay').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('submitWithdraw').click();
+});
+document.getElementById('submitWithdraw').addEventListener('click', async () => {
+  const iracing = document.getElementById('withdrawIracing').value.trim();
+  const errEl   = document.getElementById('withdrawError');
+  if (!iracing) { showErr(errEl, 'Please enter your iRacing username.'); return; }
+
+  const reg = regs.find(r => r.raceId === pendingWithdrawRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
+  if (!reg) { showErr(errEl, 'No registration found for that username in this race.'); return; }
+  if (reg.carId) {
+    showErr(errEl, 'You have already been assigned to a car. Please contact the team principal to withdraw.');
+    return;
+  }
+
+  const btn = document.getElementById('submitWithdraw');
+  btn.disabled = true; btn.textContent = 'Withdrawing…';
+  try {
+    await deleteDoc(doc(db, 'endurance_registrations', reg.id));
+    document.getElementById('withdrawOverlay').style.display = 'none';
+  } catch (err) {
+    showErr(errEl, 'Could not withdraw — please contact the team principal.');
+  }
+  btn.disabled = false; btn.textContent = 'Withdraw';
 });
 
 // ── Assign Driver (TP only) ────────────────────────────────────────────────
@@ -1249,11 +1327,20 @@ document.getElementById('submitEditRace').addEventListener('click', async () => 
   const btn = document.getElementById('submitEditRace');
   btn.disabled = true; btn.textContent = 'Saving…';
 
+  // Apply the new size to existing teams too, but never below the number of
+  // drivers already assigned to a car.
+  const race = races.find(r => r.id === editingRaceId);
+  const cars = (race?.cars || []).map(car => {
+    const assigned = regs.filter(r => r.raceId === editingRaceId && r.carId === car.id).length;
+    return { ...car, maxDrivers: Math.max(driversEa, assigned) };
+  });
+
   await updateDoc(doc(db, 'endurance_races', editingRaceId), {
     track, format: fmt,
     dateStart: new Date(dvalStart),
     dateEnd: new Date(dvalEnd),
     driversPerTeam: driversEa,
+    cars,
   });
 
   btn.disabled = false; btn.textContent = 'Save Changes';
@@ -1372,8 +1459,6 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 // ── Results (TP only) ─────────────────────────────────────────────────────
 let resultsRaceId = null;
 
-document.getElementById('root').addEventListener('click', e => {}, { once: false });
-
 function openResults(raceId) {
   const race = races.find(r => r.id === raceId);
   if (!race || !(race.cars || []).length) {
@@ -1459,6 +1544,18 @@ function esc(str) {
 function showErr(el, msg) {
   el.textContent = msg; el.classList.add('show');
 }
+
+// ── Modal close: backdrop click + Escape, consistent across all modals ────
+document.querySelectorAll('.overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if (e.target === ov) ov.style.display = 'none'; });
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.overlay').forEach(ov => {
+    if (ov.style.display === 'flex') ov.style.display = 'none';
+  });
+  document.getElementById('registryOverlay').classList.remove('open');
+});
 </script>
 </body>
 </html>
