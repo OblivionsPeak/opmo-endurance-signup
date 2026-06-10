@@ -36,7 +36,20 @@
     .logo img { height: 30px; }
     .logo-text { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
     .logo-sub  { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
-    .header-right { margin-left: auto; font-size: 12px; color: var(--muted); }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .tp-badge {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 4px; display: none;
+      background: rgba(229,57,53,.15); color: var(--accent2); border: 1px solid rgba(229,57,53,.3);
+    }
+    .tp-badge.active { display: inline-block; }
+    .btn-tp {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 5px 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-tp:hover { border-color: var(--accent); color: var(--text); }
+    .btn-tp.active { border-color: var(--accent); color: var(--accent2); }
 
     /* ── Layout ── */
     main { max-width: 940px; margin: 0 auto; padding: 28px 16px 100px; }
@@ -120,7 +133,8 @@
       font-size: 11px; color: var(--muted);
     }
 
-    .car-footer { padding: 10px 14px; border-top: 1px solid var(--border); }
+    .car-footer { padding: 10px 14px; border-top: 1px solid var(--border); display: none; }
+    .car-footer.tp-visible { display: block; }
 
     .btn-register {
       width: 100%; padding: 8px 0; background: var(--accent);
@@ -129,6 +143,27 @@
     }
     .btn-register:hover:not(:disabled)  { background: var(--accent2); }
     .btn-register:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; border: 1px solid var(--border); }
+
+    /* ── Race-level register button ── */
+    .btn-race-register {
+      margin-top: 14px; padding: 9px 20px;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-race-register:hover { background: var(--accent2); }
+
+    /* ── Unassigned pool ── */
+    .unassigned-section { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+    .unassigned-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .unassigned-list { display: flex; flex-direction: column; gap: 6px; }
+    .unassigned-driver {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 12px;
+    }
+    .unassigned-driver .driver-info { flex: 1; min-width: 0; }
+    .unassigned-empty { font-size: 13px; color: var(--muted); font-style: italic; }
 
     /* ── FAB ── */
     .fab {
@@ -233,7 +268,10 @@
       <div class="logo-sub">Race Registration</div>
     </div>
   </div>
-  <div class="header-right">All times local to your device</div>
+  <div class="header-right">
+    <span class="tp-badge" id="tpBadge">TP Mode</span>
+    <button class="btn-tp" id="tpBtn">🔒 Team Principal</button>
+  </div>
 </header>
 
 <main>
@@ -275,11 +313,28 @@
   </div>
 </div>
 
+<!-- ══ TP LOGIN MODAL ══ -->
+<div class="overlay" id="tpOverlay" style="display:none">
+  <div class="modal" style="max-width:380px">
+    <h2>Team Principal Login</h2>
+    <div class="form-error" id="tpError"></div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="tpPassword" placeholder="Enter TP password" autocomplete="off" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelTp">Cancel</button>
+      <button class="btn-primary" id="submitTp">Unlock</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ REGISTER MODAL ══ -->
 <div class="overlay" id="registerOverlay" style="display:none">
   <div class="modal" style="max-width:400px">
-    <h2 id="regTitle">Register</h2>
+    <h2 id="regTitle">Register for Race</h2>
     <div class="form-error" id="regError"></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">The team principal will assign you to a car once registrations are in.</p>
     <div class="form-group">
       <label>Your Name</label>
       <input type="text" id="regName" placeholder="First Last" autocomplete="name" />
@@ -295,10 +350,26 @@
   </div>
 </div>
 
+<!-- ══ ASSIGN MODAL (TP only) ══ -->
+<div class="overlay" id="assignOverlay" style="display:none">
+  <div class="modal" style="max-width:400px">
+    <h2 id="assignTitle">Assign Driver</h2>
+    <div class="form-error" id="assignError"></div>
+    <div class="form-group">
+      <label>Select Driver</label>
+      <select id="assignSelect"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelAssign">Cancel</button>
+      <button class="btn-primary" id="submitAssign">Assign</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp }                                                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, doc, addDoc, deleteDoc, onSnapshot,
-         serverTimestamp, query, orderBy }                                   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, doc, addDoc, deleteDoc, updateDoc,
+         onSnapshot, serverTimestamp, query, orderBy }                       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── Firebase ──────────────────────────────────────────────────────────────
 const app = initializeApp({
@@ -314,7 +385,17 @@ const db = getFirestore(app);
 // ── State ─────────────────────────────────────────────────────────────────
 let races = [], regs = [];
 let pendingRaceId = null, pendingCarId = null, pendingCarLabel = null;
+let pendingAssignCarId = null, pendingAssignRaceId = null, pendingAssignCarLabel = null;
 let carBuilders = [];
+let tpMode = sessionStorage.getItem('tpMode') === '1';
+
+// SHA-256 hash of the TP password — default is "opmo2025" — change by updating this hash
+const TP_HASH = '7c2fec5e7a1d0e3b8454692b59a66131141eb894278ae939486c7e934d7d9fce';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
 
 // Preset car colours for quick selection
 const PRESET_COLORS = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#f9a825','#00acc1','#e91e63'];
@@ -400,7 +481,9 @@ function raceCard(race, isPast) {
     </div>
     <div class="race-body">
       <div class="cars-grid">${carsHtml}</div>
-      <button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>
+      ${unassignedSection(race, raceRegs, isPast)}
+      ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button>` : ''}
+      ${tpMode ? `<button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>` : ''}
     </div>
   </div>`;
 }
@@ -420,15 +503,14 @@ function carCard(race, car, raceRegs, isPast) {
             <div class="driver-name">${esc(reg.name)}</div>
             <div class="driver-iracing">${esc(reg.iracing)}</div>
           </div>
-          <button class="btn-remove" data-regid="${reg.id}" title="Remove registration">✕</button>
+          ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Unassign driver">✕</button>` : ''}
         </div>`;
     } else {
       driversHtml += `<div class="open-slot">Open slot ${i + 1}</div>`;
     }
   }
 
-  const disabled    = isFull || isPast;
-  const btnText     = isPast ? 'Race Ended' : isFull ? 'Car Full' : 'Register';
+  const canAssign = tpMode && !isFull && !isPast;
 
   return `
   <div class="car-card">
@@ -438,23 +520,52 @@ function carCard(race, car, raceRegs, isPast) {
       <div class="car-count">${carRegs.length}/${car.maxDrivers}</div>
     </div>
     <div class="car-drivers">${driversHtml}</div>
-    <div class="car-footer">
-      <button class="btn-register" ${disabled ? 'disabled' : ''}
-        data-raceid="${race.id}" data-carid="${car.id}" data-carlabel="${esc(car.label)}">
-        ${btnText}
+    <div class="car-footer ${tpMode ? 'tp-visible' : ''}">
+      <button class="btn-register" ${!canAssign ? 'disabled' : ''}
+        data-action="assign" data-raceid="${race.id}" data-carid="${car.id}" data-carlabel="${esc(car.label)}">
+        ${isPast ? 'Race Ended' : isFull ? 'Car Full' : 'Assign Driver'}
       </button>
     </div>
   </div>`;
 }
 
+function unassignedSection(race, raceRegs, isPast) {
+  const unassigned = raceRegs.filter(r => !r.carId);
+  if (unassigned.length === 0 && !isPast) {
+    return `<div class="unassigned-section">
+      <div class="unassigned-label">Unassigned Drivers</div>
+      <div class="unassigned-empty">No unassigned drivers yet.</div>
+    </div>`;
+  }
+  if (unassigned.length === 0) return '';
+
+  const items = unassigned.map(reg => `
+    <div class="unassigned-driver">
+      <div class="driver-info">
+        <div class="driver-name">${esc(reg.name)}</div>
+        <div class="driver-iracing">${esc(reg.iracing)}</div>
+      </div>
+      ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Remove registration">✕</button>` : ''}
+    </div>`).join('');
+
+  return `<div class="unassigned-section">
+    <div class="unassigned-label">Unassigned Drivers (${unassigned.length})</div>
+    <div class="unassigned-list">${items}</div>
+  </div>`;
+}
+
 // Event delegation for dynamically rendered buttons
 document.getElementById('root').addEventListener('click', e => {
-  const regBtn  = e.target.closest('.btn-register');
-  const remBtn  = e.target.closest('.btn-remove');
-  const delRace = e.target.closest('.btn-delete-race');
+  const assignBtn   = e.target.closest('[data-action="assign"]');
+  const regBtn      = e.target.closest('[data-action="race-register"]');
+  const remBtn      = e.target.closest('.btn-remove');
+  const delRace     = e.target.closest('.btn-delete-race');
 
-  if (regBtn && !regBtn.disabled) {
-    openRegister(regBtn.dataset.raceid, regBtn.dataset.carid, regBtn.dataset.carlabel);
+  if (assignBtn && !assignBtn.disabled) {
+    openAssign(assignBtn.dataset.raceid, assignBtn.dataset.carid, assignBtn.dataset.carlabel);
+  }
+  if (regBtn) {
+    openRegister(regBtn.dataset.raceid, regBtn.dataset.racetrack);
   }
   if (remBtn) {
     removeReg(remBtn.dataset.regid);
@@ -543,12 +654,51 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   carBuilders = [{ color: '#e53935', label: 'OM Endurance — Red', max: 2 }];
 });
 
-// ── Register ──────────────────────────────────────────────────────────────
-function openRegister(raceId, carId, carLabel) {
-  pendingRaceId   = raceId;
-  pendingCarId    = carId;
-  pendingCarLabel = carLabel;
-  document.getElementById('regTitle').textContent = `Register — ${carLabel}`;
+// ── TP Mode ───────────────────────────────────────────────────────────────
+function updateTpUI() {
+  document.getElementById('tpBadge').classList.toggle('active', tpMode);
+  document.getElementById('tpBtn').classList.toggle('active', tpMode);
+  document.getElementById('tpBtn').textContent = tpMode ? '🔓 Exit TP Mode' : '🔒 Team Principal';
+  render();
+}
+updateTpUI();
+
+document.getElementById('tpBtn').addEventListener('click', () => {
+  if (tpMode) {
+    tpMode = false;
+    sessionStorage.removeItem('tpMode');
+    updateTpUI();
+  } else {
+    document.getElementById('tpPassword').value = '';
+    document.getElementById('tpError').classList.remove('show');
+    document.getElementById('tpOverlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('tpPassword').focus(), 50);
+  }
+});
+document.getElementById('cancelTp').addEventListener('click', () => {
+  document.getElementById('tpOverlay').style.display = 'none';
+});
+document.getElementById('tpOverlay').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('submitTp').click();
+  if (e.key === 'Escape') document.getElementById('tpOverlay').style.display = 'none';
+});
+document.getElementById('submitTp').addEventListener('click', async () => {
+  const pw = document.getElementById('tpPassword').value;
+  const hash = await sha256(pw);
+  if (hash !== TP_HASH) {
+    showErr(document.getElementById('tpError'), 'Incorrect password.');
+    return;
+  }
+  tpMode = true;
+  sessionStorage.setItem('tpMode', '1');
+  document.getElementById('tpOverlay').style.display = 'none';
+  updateTpUI();
+});
+
+// ── Register (driver self sign-up — no car selection) ─────────────────────
+function openRegister(raceId, raceTrack) {
+  pendingRaceId = raceId;
+  document.getElementById('regTitle').textContent = `Register — ${raceTrack}`;
   document.getElementById('regError').classList.remove('show');
   document.getElementById('regName').value    = '';
   document.getElementById('regIracing').value = '';
@@ -559,12 +709,10 @@ function openRegister(raceId, carId, carLabel) {
 document.getElementById('cancelReg').addEventListener('click', () => {
   document.getElementById('registerOverlay').style.display = 'none';
 });
-
 document.getElementById('registerOverlay').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('submitReg').click();
   if (e.key === 'Escape') document.getElementById('registerOverlay').style.display = 'none';
 });
-
 document.getElementById('submitReg').addEventListener('click', async () => {
   const name    = document.getElementById('regName').value.trim();
   const iracing = document.getElementById('regIracing').value.trim();
@@ -573,7 +721,6 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   if (!name)    { showErr(errEl, 'Please enter your name.'); return; }
   if (!iracing) { showErr(errEl, 'Please enter your iRacing username.'); return; }
 
-  // Duplicate check — same iRacing name already in this race
   const dup = regs.find(r => r.raceId === pendingRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
   if (dup) { showErr(errEl, 'That iRacing username is already registered for this race.'); return; }
 
@@ -581,7 +728,7 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   await addDoc(collection(db, 'endurance_registrations'), {
-    raceId: pendingRaceId, carId: pendingCarId,
+    raceId: pendingRaceId, carId: null,
     name, iracing, timestamp: serverTimestamp()
   });
 
@@ -589,10 +736,49 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   document.getElementById('registerOverlay').style.display = 'none';
 });
 
-// ── Remove / delete ───────────────────────────────────────────────────────
+// ── Assign Driver (TP only) ────────────────────────────────────────────────
+function openAssign(raceId, carId, carLabel) {
+  const unassigned = regs.filter(r => r.raceId === raceId && !r.carId);
+  if (unassigned.length === 0) {
+    alert('No unassigned drivers for this race. Drivers must register first.');
+    return;
+  }
+  pendingAssignRaceId  = raceId;
+  pendingAssignCarId   = carId;
+  pendingAssignCarLabel = carLabel;
+  document.getElementById('assignTitle').textContent = `Assign to ${carLabel}`;
+  document.getElementById('assignError').classList.remove('show');
+  document.getElementById('assignSelect').innerHTML =
+    unassigned.map(r => `<option value="${r.id}">${esc(r.name)} (${esc(r.iracing)})</option>`).join('');
+  document.getElementById('assignOverlay').style.display = 'flex';
+}
+document.getElementById('cancelAssign').addEventListener('click', () => {
+  document.getElementById('assignOverlay').style.display = 'none';
+});
+document.getElementById('submitAssign').addEventListener('click', async () => {
+  const regId = document.getElementById('assignSelect').value;
+  if (!regId) return;
+  const btn = document.getElementById('submitAssign');
+  btn.disabled = true; btn.textContent = 'Assigning…';
+  await updateDoc(doc(db, 'endurance_registrations', regId), { carId: pendingAssignCarId });
+  btn.disabled = false; btn.textContent = 'Assign';
+  document.getElementById('assignOverlay').style.display = 'none';
+});
+
+// ── Remove / unassign ─────────────────────────────────────────────────────
 async function removeReg(regId) {
-  if (confirm('Remove this registration?')) {
-    await deleteDoc(doc(db, 'endurance_registrations', regId));
+  const reg = regs.find(r => r.id === regId);
+  if (!reg) return;
+  if (reg.carId) {
+    // Assigned — unassign back to pool
+    if (confirm('Unassign this driver from the car? They will return to the unassigned pool.')) {
+      await updateDoc(doc(db, 'endurance_registrations', regId), { carId: null });
+    }
+  } else {
+    // Unassigned — remove entirely
+    if (confirm('Remove this registration entirely?')) {
+      await deleteDoc(doc(db, 'endurance_registrations', regId));
+    }
   }
 }
 
