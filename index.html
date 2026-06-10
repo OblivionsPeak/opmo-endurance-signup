@@ -409,6 +409,37 @@
       <input type="text" id="regIracing" placeholder="Exact iRacing display name" autocomplete="off" />
     </div>
     <div class="form-group">
+      <label>Car</label>
+      <select id="regCar">
+        <option value="">— Select your car —</option>
+        <optgroup label="GTP">
+          <option>Acura ARX-06 GTP</option>
+          <option>BMW M Hybrid V8</option>
+          <option>Cadillac V-Series.R GTP</option>
+          <option>Nissan GTP ZX-T</option>
+          <option>Porsche 963 GTP</option>
+        </optgroup>
+        <optgroup label="LMP2">
+          <option>Dallara P217 LMP2</option>
+        </optgroup>
+        <optgroup label="GT3">
+          <option>Acura NSX GT3 EVO 22</option>
+          <option>Aston Martin Vantage GT3 EVO</option>
+          <option>Audi R8 LMS EVO II GT3</option>
+          <option>BMW M4 GT3 EVO</option>
+          <option>Chevrolet Corvette Z06 GT3.R</option>
+          <option>Ferrari 296 GT3</option>
+          <option>Ferrari 488 GT3 Evo 2020</option>
+          <option>Ford GT GT3</option>
+          <option>Ford Mustang GT3</option>
+          <option>Lamborghini Huracán GT3 EVO</option>
+          <option>McLaren 720S GT3 EVO</option>
+          <option>Mercedes-AMG GT3 2020</option>
+          <option>Porsche 911 GT3 R (992)</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
       <label>Teammate Group <span style="font-weight:400;text-transform:none">(optional)</span></label>
       <div class="group-toggle">
         <button class="group-tab active" data-gtype="solo" type="button">Solo</button>
@@ -603,7 +634,7 @@ function carCard(race, car, raceRegs, isPast) {
           <span class="driver-num">${i + 1}</span>
           <div class="driver-info">
             <div class="driver-name">${esc(reg.name)}</div>
-            <div class="driver-iracing">${esc(reg.iracing)}</div>
+            <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
           </div>
           ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Unassign driver">✕</button>` : ''}
         </div>`;
@@ -657,7 +688,7 @@ function unassignedSection(race, raceRegs, isPast) {
     <div class="unassigned-driver">
       <div class="driver-info">
         <div class="driver-name">${esc(reg.name)}</div>
-        <div class="driver-iracing">${esc(reg.iracing)}</div>
+        <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
       </div>
       ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Remove">✕</button>` : ''}
     </div>`;
@@ -792,8 +823,9 @@ function openRegister(raceId, raceTrack) {
   regGroupType   = 'solo';
   document.getElementById('regTitle').textContent = `Register — ${raceTrack}`;
   document.getElementById('regError').classList.remove('show');
-  document.getElementById('regName').value     = '';
-  document.getElementById('regIracing').value  = '';
+  document.getElementById('regName').value      = '';
+  document.getElementById('regIracing').value   = '';
+  document.getElementById('regCar').value       = '';
   document.getElementById('regGroupCode').value = '';
   document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t.dataset.gtype === 'solo'));
   document.getElementById('groupCreateSection').classList.remove('show');
@@ -824,8 +856,11 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   const iracing = document.getElementById('regIracing').value.trim();
   const errEl   = document.getElementById('regError');
 
+  const car = document.getElementById('regCar').value;
+
   if (!name)    { showErr(errEl, 'Please enter your name.'); return; }
   if (!iracing) { showErr(errEl, 'Please enter your iRacing username.'); return; }
+  if (!car)     { showErr(errEl, 'Please select your car.'); return; }
 
   const dup = regs.find(r => r.raceId === pendingRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
   if (dup) { showErr(errEl, 'That iRacing username is already registered for this race.'); return; }
@@ -851,7 +886,7 @@ document.getElementById('submitReg').addEventListener('click', async () => {
 
   await addDoc(collection(db, 'endurance_registrations'), {
     raceId: pendingRaceId, carId: null, groupId,
-    name, iracing, timestamp: serverTimestamp()
+    name, iracing, car, timestamp: serverTimestamp()
   });
 
   btn.disabled = false; btn.textContent = 'Register';
