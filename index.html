@@ -123,11 +123,10 @@
     .driver-iracing { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .btn-remove {
-      background: none; border: none; color: transparent;
+      background: none; border: none; color: var(--muted);
       cursor: pointer; font-size: 13px; padding: 3px 5px; border-radius: 4px;
       transition: all 0.15s; flex-shrink: 0;
     }
-    .driver-entry:hover .btn-remove { color: var(--muted); }
     .btn-remove:hover { color: var(--accent2) !important; background: rgba(229,57,53,.1); }
 
     .open-slot {
@@ -276,6 +275,10 @@
       background: rgba(229,57,53,.07); border-bottom: 1px solid #2a2a2a;
       font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent2);
     }
+    .tp-code {
+      background: rgba(229,57,53,.15); border: 1px solid rgba(229,57,53,.3);
+      border-radius: 4px; padding: 1px 7px; font-family: monospace; letter-spacing: 0.14em;
+    }
     .group-cluster-body { padding: 6px 0; }
 
     /* ── Export button ── */
@@ -308,6 +311,7 @@
       .open-slot { border-color: #ccc !important; color: #999 !important; }
       .group-cluster { border-color: #ddd !important; background: #fafafa !important; }
       .group-cluster-header { background: #f0f0f0 !important; color: #555 !important; }
+      .tp-code { display: none !important; }
       main { padding: 12px !important; }
     }
 
@@ -443,14 +447,14 @@
       <label>Teammate Group <span style="font-weight:400;text-transform:none">(optional)</span></label>
       <div class="group-toggle">
         <button class="group-tab active" data-gtype="solo" type="button">Solo</button>
-        <button class="group-tab" data-gtype="create" type="button">Create Group</button>
-        <button class="group-tab" data-gtype="join" type="button">Join Group</button>
+        <button class="group-tab" data-gtype="create" type="button">Create Team</button>
+        <button class="group-tab" data-gtype="join" type="button">Join Team</button>
       </div>
       <div class="group-section" id="groupCreateSection">
-        <div style="font-size:12px;color:var(--muted)">A group code will be generated after you register. Share it with your teammates so they can join.</div>
+        <div style="font-size:12px;color:var(--muted)">A team code will be generated after you register. Share it with your teammates so they can join.</div>
       </div>
       <div class="group-section" id="groupJoinSection">
-        <input type="text" id="regGroupCode" placeholder="Enter group code (e.g. WOLF)" autocomplete="off"
+        <input type="text" id="regGroupCode" placeholder="Enter team code (e.g. WOLF)" autocomplete="off"
           style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;outline:none;font-family:monospace" />
       </div>
     </div>
@@ -696,7 +700,7 @@ function unassignedSection(race, raceRegs, isPast) {
   let html = '';
   for (const [code, members] of Object.entries(groups)) {
     html += `<div class="group-cluster">
-      <div class="group-cluster-header">👥 Group ${code} · ${members.length} driver${members.length !== 1 ? 's' : ''}</div>
+      <div class="group-cluster-header">👥 Team${tpMode ? ` <span class="tp-code">${code}</span>` : ''} · ${members.length} driver${members.length !== 1 ? 's' : ''}</div>
       <div class="group-cluster-body">${members.map(driverRow).join('')}</div>
     </div>`;
   }
