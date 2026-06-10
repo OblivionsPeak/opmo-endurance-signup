@@ -20,7 +20,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
-      background-image: linear-gradient(rgba(0,0,0,0.82), rgba(0,0,0,0.82)), url('./Spa-2.jpg');
+      background-image: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url('./Spa-2.jpg');
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
@@ -327,13 +327,20 @@
     /* ── Loading spinner ── */
     .loading { text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
 
-    /* ── Delete race button ── */
+    /* ── Race action buttons ── */
+    .race-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
     .btn-delete-race {
       background: none; border: 1px solid var(--border); color: var(--muted);
-      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; margin-top: 14px;
+      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
       transition: all 0.15s;
     }
     .btn-delete-race:hover { border-color: var(--accent); color: var(--accent2); }
+    .btn-edit-race {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-edit-race:hover { border-color: #888; color: var(--text); }
   </style>
 </head>
 <body>
@@ -387,6 +394,38 @@
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelAddRace">Cancel</button>
       <button class="btn-primary"   id="submitAddRace">Create Race</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EDIT RACE MODAL ══ -->
+<div class="overlay" id="editRaceOverlay" style="display:none">
+  <div class="modal">
+    <h2>Edit Race</h2>
+    <div class="form-error" id="editRaceError"></div>
+    <div class="form-group">
+      <label>Track</label>
+      <input type="text" id="editRaceTrack" placeholder="e.g. Watkins Glen" />
+    </div>
+    <div class="form-group">
+      <label>Format / Notes <span style="font-weight:400;text-transform:none">(optional)</span></label>
+      <input type="text" id="editRaceFmt" placeholder="e.g. 2h 45m, 6 Hours of Spa" />
+    </div>
+    <div class="form-group">
+      <label>Start Date &amp; Time</label>
+      <input type="datetime-local" id="editRaceDateStart" />
+    </div>
+    <div class="form-group">
+      <label>End Date &amp; Time</label>
+      <input type="datetime-local" id="editRaceDateEnd" />
+    </div>
+    <div class="form-group">
+      <label>Drivers Per Team</label>
+      <input type="number" id="editRaceDriversPerTeam" min="1" max="6" value="2" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelEditRace">Cancel</button>
+      <button class="btn-primary" id="submitEditRace">Save Changes</button>
     </div>
   </div>
 </div>
@@ -629,7 +668,10 @@ function raceCard(race, isPast) {
       ${tpMode && !isPast ? `<button class="btn-add-team" data-action="add-team" data-raceid="${race.id}">+ Add Team</button>` : ''}
       ${unassignedSection(race, raceRegs, isPast)}
       ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button>` : ''}
-      ${tpMode ? `<button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>` : ''}
+      ${tpMode ? `<div class="race-actions">
+        <button class="btn-edit-race" data-action="edit-race" data-raceid="${race.id}">✏ Edit Race</button>
+        <button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>
+      </div>` : ''}
     </div>
   </div>`;
 }
@@ -733,6 +775,8 @@ document.getElementById('root').addEventListener('click', e => {
   }
   const addTeamBtn = e.target.closest('[data-action="add-team"]');
   if (addTeamBtn) addTeam(addTeamBtn.dataset.raceid);
+  const editRaceBtn = e.target.closest('[data-action="edit-race"]');
+  if (editRaceBtn) openEditRace(editRaceBtn.dataset.raceid);
   if (regBtn) {
     openRegister(regBtn.dataset.raceid, regBtn.dataset.racetrack);
   }
@@ -1038,6 +1082,59 @@ async function addTeam(raceId) {
   const newCar = { id: `car${nextNum}_${Date.now()}`, number: nextNum, maxDrivers: race.driversPerTeam || 2 };
   await updateDoc(doc(db, 'endurance_races', raceId), { cars: [...existing, newCar] });
 }
+
+// ── Edit Race (TP only) ───────────────────────────────────────────────────
+let editingRaceId = null;
+
+function toLocalDatetimeValue(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function openEditRace(raceId) {
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+  editingRaceId = raceId;
+  document.getElementById('editRaceTrack').value          = race.track || '';
+  document.getElementById('editRaceFmt').value            = race.format || '';
+  document.getElementById('editRaceDateStart').value      = toLocalDatetimeValue(race.dateStart || race.date);
+  document.getElementById('editRaceDateEnd').value        = toLocalDatetimeValue(race.dateEnd);
+  document.getElementById('editRaceDriversPerTeam').value = race.driversPerTeam || 2;
+  document.getElementById('editRaceError').classList.remove('show');
+  document.getElementById('editRaceOverlay').style.display = 'flex';
+}
+
+document.getElementById('cancelEditRace').addEventListener('click', () => {
+  document.getElementById('editRaceOverlay').style.display = 'none';
+});
+
+document.getElementById('submitEditRace').addEventListener('click', async () => {
+  const track      = document.getElementById('editRaceTrack').value.trim();
+  const fmt        = document.getElementById('editRaceFmt').value.trim();
+  const dvalStart  = document.getElementById('editRaceDateStart').value;
+  const dvalEnd    = document.getElementById('editRaceDateEnd').value;
+  const driversEa  = Math.min(6, Math.max(1, +document.getElementById('editRaceDriversPerTeam').value || 2));
+  const errEl      = document.getElementById('editRaceError');
+
+  if (!track)    { showErr(errEl, 'Please enter a track name.'); return; }
+  if (!dvalStart){ showErr(errEl, 'Please select a start date and time.'); return; }
+  if (!dvalEnd)  { showErr(errEl, 'Please select an end date and time.'); return; }
+  if (new Date(dvalEnd) <= new Date(dvalStart)) { showErr(errEl, 'End time must be after start time.'); return; }
+
+  const btn = document.getElementById('submitEditRace');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  await updateDoc(doc(db, 'endurance_races', editingRaceId), {
+    track, format: fmt,
+    dateStart: new Date(dvalStart),
+    dateEnd: new Date(dvalEnd),
+    driversPerTeam: driversEa,
+  });
+
+  btn.disabled = false; btn.textContent = 'Save Changes';
+  document.getElementById('editRaceOverlay').style.display = 'none';
+});
 
 // ── Export PDF ────────────────────────────────────────────────────────────
 document.getElementById('exportBtn').addEventListener('click', () => {
