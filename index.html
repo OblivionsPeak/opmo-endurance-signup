@@ -241,10 +241,64 @@
     }
     .form-error.show { display: block; }
 
+    /* ── Group registration ── */
+    .group-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
+    .group-tab {
+      flex: 1; padding: 8px; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 7px; color: var(--muted); font-size: 12px; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: all 0.15s;
+      font-family: inherit;
+    }
+    .group-tab.active { background: rgba(229,57,53,.12); border-color: var(--accent); color: var(--accent2); }
+    .group-section { display: none; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 4px; }
+    .group-section.show { display: block; }
+    .group-code-display {
+      font-size: 28px; font-weight: 800; letter-spacing: 0.18em; text-align: center;
+      color: var(--accent2); padding: 12px 0 4px; font-family: monospace;
+    }
+    .group-code-hint { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 6px; }
+
+    /* ── Group cluster in unassigned list ── */
+    .group-cluster { background: var(--bg3); border: 1px solid #333; border-radius: 8px; overflow: hidden; margin-bottom: 6px; }
+    .group-cluster-header {
+      display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+      background: rgba(229,57,53,.07); border-bottom: 1px solid #2a2a2a;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent2);
+    }
+    .group-cluster-body { padding: 6px 0; }
+
+    /* ── Export button ── */
+    .btn-export {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      background: var(--bg3); border: 1px solid #444; color: #ccc;
+      border-radius: 6px; padding: 7px 14px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-export:hover { border-color: #888; color: #fff; }
+
     /* ── Empty state ── */
     .empty { text-align: center; padding: 72px 20px; color: var(--muted); }
     .empty .e-icon { font-size: 44px; margin-bottom: 14px; }
     .empty p { font-size: 15px; }
+
+    /* ── Print styles ── */
+    @media print {
+      header, .fab, .btn-tp, .btn-export, .btn-race-register, .btn-delete-race,
+      .btn-remove, .car-footer, .tpOverlay, .overlay { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
+      .race-card { border: 1px solid #ccc !important; background: #fff !important; page-break-inside: avoid; margin-bottom: 16px; }
+      .race-card-header { background: #f5f5f5 !important; }
+      .race-track { color: #000 !important; }
+      .race-date, .race-badge, .car-label, .driver-name, .driver-iracing,
+      .section-label, .unassigned-label, .car-count { color: #333 !important; }
+      .race-body { display: block !important; }
+      .race-card.expanded .race-body, .race-body { display: block !important; }
+      .car-card { border: 1px solid #ddd !important; background: #fafafa !important; }
+      .car-header { border-bottom: 1px solid #ddd !important; background: #f0f0f0 !important; }
+      .open-slot { border-color: #ccc !important; color: #999 !important; }
+      .group-cluster { border-color: #ddd !important; background: #fafafa !important; }
+      .group-cluster-header { background: #f0f0f0 !important; color: #555 !important; }
+      main { padding: 12px !important; }
+    }
 
     /* ── Loading spinner ── */
     .loading { text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
@@ -269,6 +323,7 @@
     </div>
   </div>
   <div class="header-right">
+    <button class="btn-export" id="exportBtn">⬇ Export PDF</button>
     <span class="tp-badge" id="tpBadge">TP Mode</span>
     <button class="btn-tp" id="tpBtn">🔒 Team Principal</button>
   </div>
@@ -331,10 +386,10 @@
 
 <!-- ══ REGISTER MODAL ══ -->
 <div class="overlay" id="registerOverlay" style="display:none">
-  <div class="modal" style="max-width:400px">
+  <div class="modal" style="max-width:420px">
     <h2 id="regTitle">Register for Race</h2>
     <div class="form-error" id="regError"></div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">The team principal will assign you to a car once registrations are in.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">The team principal will assign you to a car. You can request to be grouped with teammates below.</p>
     <div class="form-group">
       <label>Your Name</label>
       <input type="text" id="regName" placeholder="First Last" autocomplete="name" />
@@ -343,6 +398,21 @@
       <label>iRacing Username</label>
       <input type="text" id="regIracing" placeholder="Exact iRacing display name" autocomplete="off" />
     </div>
+    <div class="form-group">
+      <label>Teammate Group <span style="font-weight:400;text-transform:none">(optional)</span></label>
+      <div class="group-toggle">
+        <button class="group-tab active" data-gtype="solo" type="button">Solo</button>
+        <button class="group-tab" data-gtype="create" type="button">Create Group</button>
+        <button class="group-tab" data-gtype="join" type="button">Join Group</button>
+      </div>
+      <div class="group-section" id="groupCreateSection">
+        <div style="font-size:12px;color:var(--muted)">A group code will be generated after you register. Share it with your teammates so they can join.</div>
+      </div>
+      <div class="group-section" id="groupJoinSection">
+        <input type="text" id="regGroupCode" placeholder="Enter group code (e.g. WOLF)" autocomplete="off"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:15px;letter-spacing:0.1em;text-transform:uppercase;outline:none;font-family:monospace" />
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelReg">Cancel</button>
       <button class="btn-primary"   id="submitReg">Register</button>
@@ -350,15 +420,29 @@
   </div>
 </div>
 
+<!-- ══ GROUP CODE CONFIRMATION ══ -->
+<div class="overlay" id="groupCodeOverlay" style="display:none">
+  <div class="modal" style="max-width:360px;text-align:center">
+    <h2>You're registered!</h2>
+    <p style="font-size:13px;color:var(--muted);margin:12px 0 8px">Share this code with your teammates so they can join your group:</p>
+    <div class="group-code-display" id="groupCodeDisplay">----</div>
+    <div class="group-code-hint">They select "Join Group" when registering and enter this code.</div>
+    <div class="modal-actions" style="justify-content:center;margin-top:20px">
+      <button class="btn-primary" id="closeGroupCode">Got it</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ASSIGN MODAL (TP only) ══ -->
 <div class="overlay" id="assignOverlay" style="display:none">
-  <div class="modal" style="max-width:400px">
-    <h2 id="assignTitle">Assign Driver</h2>
+  <div class="modal" style="max-width:420px">
+    <h2 id="assignTitle">Assign to Car</h2>
     <div class="form-error" id="assignError"></div>
     <div class="form-group">
-      <label>Select Driver</label>
-      <select id="assignSelect"></select>
+      <label>Select Driver or Group</label>
+      <select id="assignSelect" style="font-size:14px"></select>
     </div>
+    <div id="assignGroupWarning" style="display:none;font-size:12px;color:var(--accent2);background:rgba(229,57,53,.08);border:1px solid rgba(229,57,53,.2);border-radius:6px;padding:8px 12px;margin-top:-8px;margin-bottom:4px"></div>
     <div class="modal-actions">
       <button class="btn-secondary" id="cancelAssign">Cancel</button>
       <button class="btn-primary" id="submitAssign">Assign</button>
@@ -386,8 +470,15 @@ const db = getFirestore(app);
 let races = [], regs = [];
 let pendingRaceId = null, pendingCarId = null, pendingCarLabel = null;
 let pendingAssignCarId = null, pendingAssignRaceId = null, pendingAssignCarLabel = null;
+let pendingAssignSlots = 0;
 let carBuilders = [];
 let tpMode = sessionStorage.getItem('tpMode') === '1';
+let regGroupType = 'solo'; // 'solo' | 'create' | 'join'
+
+function genGroupCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  return Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
 
 // SHA-256 hash of the TP password — default is "opmo2025" — change by updating this hash
 const TP_HASH = '7c2fec5e7a1d0e3b8454692b59a66131141eb894278ae939486c7e934d7d9fce';
@@ -539,18 +630,39 @@ function unassignedSection(race, raceRegs, isPast) {
   }
   if (unassigned.length === 0) return '';
 
-  const items = unassigned.map(reg => `
+  // Separate grouped and solo
+  const groups = {};
+  const solos  = [];
+  for (const reg of unassigned) {
+    if (reg.groupId) {
+      if (!groups[reg.groupId]) groups[reg.groupId] = [];
+      groups[reg.groupId].push(reg);
+    } else {
+      solos.push(reg);
+    }
+  }
+
+  const driverRow = reg => `
     <div class="unassigned-driver">
       <div class="driver-info">
         <div class="driver-name">${esc(reg.name)}</div>
         <div class="driver-iracing">${esc(reg.iracing)}</div>
       </div>
-      ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Remove registration">✕</button>` : ''}
-    </div>`).join('');
+      ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Remove">✕</button>` : ''}
+    </div>`;
+
+  let html = '';
+  for (const [code, members] of Object.entries(groups)) {
+    html += `<div class="group-cluster">
+      <div class="group-cluster-header">👥 Group ${code} · ${members.length} driver${members.length !== 1 ? 's' : ''}</div>
+      <div class="group-cluster-body">${members.map(driverRow).join('')}</div>
+    </div>`;
+  }
+  solos.forEach(reg => { html += driverRow(reg); });
 
   return `<div class="unassigned-section">
-    <div class="unassigned-label">Unassigned Drivers (${unassigned.length})</div>
-    <div class="unassigned-list">${items}</div>
+    <div class="unassigned-label">Unassigned (${unassigned.length})</div>
+    <div class="unassigned-list">${html}</div>
   </div>`;
 }
 
@@ -695,16 +807,31 @@ document.getElementById('submitTp').addEventListener('click', async () => {
   updateTpUI();
 });
 
-// ── Register (driver self sign-up — no car selection) ─────────────────────
+// ── Register (driver self sign-up) ────────────────────────────────────────
 function openRegister(raceId, raceTrack) {
-  pendingRaceId = raceId;
+  pendingRaceId  = raceId;
+  regGroupType   = 'solo';
   document.getElementById('regTitle').textContent = `Register — ${raceTrack}`;
   document.getElementById('regError').classList.remove('show');
-  document.getElementById('regName').value    = '';
-  document.getElementById('regIracing').value = '';
+  document.getElementById('regName').value     = '';
+  document.getElementById('regIracing').value  = '';
+  document.getElementById('regGroupCode').value = '';
+  document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t.dataset.gtype === 'solo'));
+  document.getElementById('groupCreateSection').classList.remove('show');
+  document.getElementById('groupJoinSection').classList.remove('show');
   document.getElementById('registerOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('regName').focus(), 50);
 }
+
+// Group tab switching
+document.querySelectorAll('.group-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    regGroupType = tab.dataset.gtype;
+    document.querySelectorAll('.group-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.getElementById('groupCreateSection').classList.toggle('show', regGroupType === 'create');
+    document.getElementById('groupJoinSection').classList.toggle('show', regGroupType === 'join');
+  });
+});
 
 document.getElementById('cancelReg').addEventListener('click', () => {
   document.getElementById('registerOverlay').style.display = 'none';
@@ -724,16 +851,41 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   const dup = regs.find(r => r.raceId === pendingRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
   if (dup) { showErr(errEl, 'That iRacing username is already registered for this race.'); return; }
 
+  let groupId = null;
+
+  if (regGroupType === 'create') {
+    // Generate a unique code not already in use for this race
+    let code;
+    do { code = genGroupCode(); }
+    while (regs.some(r => r.raceId === pendingRaceId && r.groupId === code));
+    groupId = code;
+  } else if (regGroupType === 'join') {
+    const code = document.getElementById('regGroupCode').value.trim().toUpperCase();
+    if (!code) { showErr(errEl, 'Please enter a group code.'); return; }
+    const exists = regs.some(r => r.raceId === pendingRaceId && r.groupId === code);
+    if (!exists) { showErr(errEl, `Group code "${code}" not found for this race.`); return; }
+    groupId = code;
+  }
+
   const btn = document.getElementById('submitReg');
   btn.disabled = true; btn.textContent = 'Saving…';
 
   await addDoc(collection(db, 'endurance_registrations'), {
-    raceId: pendingRaceId, carId: null,
+    raceId: pendingRaceId, carId: null, groupId,
     name, iracing, timestamp: serverTimestamp()
   });
 
   btn.disabled = false; btn.textContent = 'Register';
   document.getElementById('registerOverlay').style.display = 'none';
+
+  if (regGroupType === 'create' && groupId) {
+    document.getElementById('groupCodeDisplay').textContent = groupId;
+    document.getElementById('groupCodeOverlay').style.display = 'flex';
+  }
+});
+
+document.getElementById('closeGroupCode').addEventListener('click', () => {
+  document.getElementById('groupCodeOverlay').style.display = 'none';
 });
 
 // ── Assign Driver (TP only) ────────────────────────────────────────────────
@@ -743,24 +895,83 @@ function openAssign(raceId, carId, carLabel) {
     alert('No unassigned drivers for this race. Drivers must register first.');
     return;
   }
-  pendingAssignRaceId  = raceId;
-  pendingAssignCarId   = carId;
+
+  // Find the car to know max slots remaining
+  const race = races.find(r => r.id === raceId);
+  const car  = (race?.cars || []).find(c => c.id === carId);
+  const assigned = regs.filter(r => r.raceId === raceId && r.carId === carId).length;
+  const slotsLeft = (car?.maxDrivers || 2) - assigned;
+
+  pendingAssignRaceId   = raceId;
+  pendingAssignCarId    = carId;
   pendingAssignCarLabel = carLabel;
+  pendingAssignSlots    = slotsLeft;
+
   document.getElementById('assignTitle').textContent = `Assign to ${carLabel}`;
   document.getElementById('assignError').classList.remove('show');
-  document.getElementById('assignSelect').innerHTML =
-    unassigned.map(r => `<option value="${r.id}">${esc(r.name)} (${esc(r.iracing)})</option>`).join('');
+  document.getElementById('assignGroupWarning').style.display = 'none';
+
+  // Build options: groups first, then solos
+  const groups = {};
+  const solos  = [];
+  for (const r of unassigned) {
+    if (r.groupId) { if (!groups[r.groupId]) groups[r.groupId] = []; groups[r.groupId].push(r); }
+    else solos.push(r);
+  }
+
+  let opts = '';
+  for (const [code, members] of Object.entries(groups)) {
+    opts += `<optgroup label="👥 Group ${code}">`;
+    opts += `<option value="group:${code}">Assign whole group (${members.length} drivers)</option>`;
+    members.forEach(r => { opts += `<option value="${r.id}">  ↳ ${esc(r.name)} only</option>`; });
+    opts += `</optgroup>`;
+  }
+  if (solos.length) {
+    opts += `<optgroup label="Solo Drivers">`;
+    solos.forEach(r => { opts += `<option value="${r.id}">${esc(r.name)} (${esc(r.iracing)})</option>`; });
+    opts += `</optgroup>`;
+  }
+
+  document.getElementById('assignSelect').innerHTML = opts;
+  document.getElementById('assignSelect').dispatchEvent(new Event('change'));
   document.getElementById('assignOverlay').style.display = 'flex';
 }
+
+document.getElementById('assignSelect').addEventListener('change', () => {
+  const val = document.getElementById('assignSelect').value;
+  const warn = document.getElementById('assignGroupWarning');
+  if (val?.startsWith('group:')) {
+    const code    = val.replace('group:', '');
+    const members = regs.filter(r => r.raceId === pendingAssignRaceId && r.groupId === code && !r.carId);
+    if (members.length > pendingAssignSlots) {
+      warn.textContent = `⚠ This group has ${members.length} drivers but only ${pendingAssignSlots} slot${pendingAssignSlots !== 1 ? 's' : ''} remaining. Only the first ${pendingAssignSlots} will be assigned.`;
+      warn.style.display = 'block';
+    } else {
+      warn.style.display = 'none';
+    }
+  } else {
+    warn.style.display = 'none';
+  }
+});
+
 document.getElementById('cancelAssign').addEventListener('click', () => {
   document.getElementById('assignOverlay').style.display = 'none';
 });
 document.getElementById('submitAssign').addEventListener('click', async () => {
-  const regId = document.getElementById('assignSelect').value;
-  if (!regId) return;
+  const val = document.getElementById('assignSelect').value;
+  if (!val) return;
   const btn = document.getElementById('submitAssign');
   btn.disabled = true; btn.textContent = 'Assigning…';
-  await updateDoc(doc(db, 'endurance_registrations', regId), { carId: pendingAssignCarId });
+
+  if (val.startsWith('group:')) {
+    const code    = val.replace('group:', '');
+    const members = regs.filter(r => r.raceId === pendingAssignRaceId && r.groupId === code && !r.carId)
+                        .slice(0, pendingAssignSlots);
+    await Promise.all(members.map(r => updateDoc(doc(db, 'endurance_registrations', r.id), { carId: pendingAssignCarId })));
+  } else {
+    await updateDoc(doc(db, 'endurance_registrations', val), { carId: pendingAssignCarId });
+  }
+
   btn.disabled = false; btn.textContent = 'Assign';
   document.getElementById('assignOverlay').style.display = 'none';
 });
@@ -789,6 +1000,13 @@ async function deleteRace(raceId) {
   await Promise.all(raceRegs.map(r => deleteDoc(doc(db, 'endurance_registrations', r.id))));
   await deleteDoc(doc(db, 'endurance_races', raceId));
 }
+
+// ── Export PDF ────────────────────────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', () => {
+  // Expand all race cards before printing
+  document.querySelectorAll('.race-card').forEach(c => c.classList.add('expanded'));
+  window.print();
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function esc(str) {
