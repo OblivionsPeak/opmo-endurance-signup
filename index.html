@@ -101,6 +101,25 @@
     .race-badge.past   { background: rgba(255,255,255,.05); color: var(--muted); border-color: var(--border); }
     .race-badge.full   { background: rgba(67,160,71,.12);   color: #81c784;      border-color: rgba(67,160,71,.3); }
 
+    /* ── Finishing position badge ── */
+    .pos-badge {
+      font-size: 13px; font-weight: 800; min-width: 32px; height: 32px;
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-family: monospace;
+    }
+    .pos-1 { background: rgba(255,215,0,.15);  color: #FFD700; border: 1px solid rgba(255,215,0,.3); }
+    .pos-2 { background: rgba(192,192,192,.15); color: #C0C0C0; border: 1px solid rgba(192,192,192,.3); }
+    .pos-3 { background: rgba(205,127,50,.15);  color: #CD7F32; border: 1px solid rgba(205,127,50,.3); }
+    .pos-n { background: rgba(255,255,255,.06); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ── Enter results button ── */
+    .btn-results {
+      background: none; border: 1px solid #444; color: #ccc;
+      border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-results:hover { border-color: #FFD700; color: #FFD700; }
+
     .expand-icon { color: var(--muted); font-size: 16px; transition: transform 0.2s; flex-shrink: 0; }
     .race-card.expanded .expand-icon { transform: rotate(180deg); }
 
@@ -398,6 +417,20 @@
   </div>
 </div>
 
+<!-- ══ RESULTS MODAL (TP only) ══ -->
+<div class="overlay" id="resultsOverlay" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <h2 id="resultsTitle">Race Results</h2>
+    <div class="form-error" id="resultsError"></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">Enter the finishing position for each team. Leave blank if a team did not finish.</p>
+    <div id="resultsFields" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelResults">Cancel</button>
+      <button class="btn-primary" id="submitResults">Save Results</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ EDIT RACE MODAL ══ -->
 <div class="overlay" id="editRaceOverlay" style="display:none">
   <div class="modal">
@@ -670,6 +703,7 @@ function raceCard(race, isPast) {
       ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button>` : ''}
       ${tpMode ? `<div class="race-actions">
         <button class="btn-edit-race" data-action="edit-race" data-raceid="${race.id}">✏ Edit Race</button>
+        <button class="btn-results" data-action="enter-results" data-raceid="${race.id}">🏆 Enter Results</button>
         <button class="btn-delete-race" data-raceid="${race.id}">Remove this race</button>
       </div>` : ''}
     </div>
@@ -706,6 +740,7 @@ function carCard(race, car, raceRegs, isPast) {
       <div class="car-num">#${car.number ?? car.label}</div>
       <div class="car-label">Team ${car.number ?? car.label}</div>
       <div class="car-count">${carRegs.length}/${car.maxDrivers}</div>
+      ${posBadge(race.results?.[car.id]?.finish, race.results?.[car.id]?.start)}
     </div>
     <div class="car-drivers">${driversHtml}</div>
     <div class="car-footer ${tpMode ? 'tp-visible' : ''}">
@@ -777,6 +812,8 @@ document.getElementById('root').addEventListener('click', e => {
   if (addTeamBtn) addTeam(addTeamBtn.dataset.raceid);
   const editRaceBtn = e.target.closest('[data-action="edit-race"]');
   if (editRaceBtn) openEditRace(editRaceBtn.dataset.raceid);
+  const resultsBtn = e.target.closest('[data-action="enter-results"]');
+  if (resultsBtn) openResults(resultsBtn.dataset.raceid);
   if (regBtn) {
     openRegister(regBtn.dataset.raceid, regBtn.dataset.racetrack);
   }
@@ -1143,7 +1180,79 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   window.print();
 });
 
+// ── Results (TP only) ─────────────────────────────────────────────────────
+let resultsRaceId = null;
+
+document.getElementById('root').addEventListener('click', e => {}, { once: false });
+
+function openResults(raceId) {
+  const race = races.find(r => r.id === raceId);
+  if (!race || !(race.cars || []).length) {
+    alert('No teams in this race yet. Add teams first.');
+    return;
+  }
+  resultsRaceId = raceId;
+  document.getElementById('resultsTitle').textContent = `Results — ${race.track}`;
+  document.getElementById('resultsError').classList.remove('show');
+  document.getElementById('resultsFields').innerHTML = (race.cars || [])
+    .sort((a, b) => (a.number || 0) - (b.number || 0))
+    .map(car => {
+      const r = race.results?.[car.id] || {};
+      return `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px">Team #${car.number ?? car.label}</div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px">Start</div>
+            <input type="number" min="1" max="99" placeholder="—"
+              data-carid="${car.id}" data-field="start"
+              value="${r.start || ''}"
+              style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:15px;text-align:center;outline:none"
+              class="result-input" />
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px">Finish</div>
+            <input type="number" min="1" max="99" placeholder="—"
+              data-carid="${car.id}" data-field="finish"
+              value="${r.finish || ''}"
+              style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:15px;text-align:center;outline:none"
+              class="result-input" />
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  document.getElementById('resultsOverlay').style.display = 'flex';
+}
+
+document.getElementById('cancelResults').addEventListener('click', () => {
+  document.getElementById('resultsOverlay').style.display = 'none';
+});
+
+document.getElementById('submitResults').addEventListener('click', async () => {
+  const inputs = document.querySelectorAll('.result-input');
+  const results = {};
+  for (const inp of inputs) {
+    const val = inp.value.trim();
+    if (!val) continue;
+    if (!results[inp.dataset.carid]) results[inp.dataset.carid] = {};
+    results[inp.dataset.carid][inp.dataset.field] = +val;
+  }
+  const btn = document.getElementById('submitResults');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  await updateDoc(doc(db, 'endurance_races', resultsRaceId), { results });
+  btn.disabled = false; btn.textContent = 'Save Results';
+  document.getElementById('resultsOverlay').style.display = 'none';
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────
+function posBadge(finish, start) {
+  if (!finish && !start) return '';
+  const cls = finish === 1 ? 'pos-1' : finish === 2 ? 'pos-2' : finish === 3 ? 'pos-3' : 'pos-n';
+  const finishLabel = finish ? (finish === 1 ? '🥇' : finish === 2 ? '🥈' : finish === 3 ? '🥉' : `P${finish}`) : '—';
+  const startLabel  = start ? `S${start}` : '';
+  return `<div class="pos-badge ${cls}" title="Start: ${start || '—'} | Finish: ${finish || '—'}">${startLabel ? `<span style="font-size:10px;opacity:.7">${startLabel} → </span>` : ''}${finishLabel}</div>`;
+}
+
 function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
