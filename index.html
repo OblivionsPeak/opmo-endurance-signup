@@ -104,11 +104,14 @@
     .car-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
 
     .car-header {
-      display: flex; align-items: center; gap: 9px;
+      display: flex; align-items: center; gap: 10px;
       padding: 11px 14px; border-bottom: 1px solid var(--border);
     }
-    .car-color-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .car-label { font-size: 13px; font-weight: 600; flex: 1; }
+    .car-num {
+      font-size: 18px; font-weight: 800; color: var(--accent2);
+      font-family: monospace; min-width: 28px; text-align: center; flex-shrink: 0;
+    }
+    .car-label { font-size: 13px; font-weight: 600; flex: 1; color: var(--muted); }
     .car-count { font-size: 11px; color: var(--muted); }
 
     .car-drivers { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
@@ -213,15 +216,15 @@
     /* ── Car builder rows (inside Add Race modal) ── */
     .car-builders { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
     .car-builder-row {
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 10px;
       background: var(--bg3); border: 1px solid var(--border);
       border-radius: 8px; padding: 10px 12px;
     }
-    .car-builder-row input[type="color"]  { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; padding: 2px; flex-shrink: 0; }
-    .car-builder-row input[type="text"]   { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; outline: none; min-width: 0; }
-    .car-builder-row input[type="text"]:focus { border-color: var(--accent); }
-    .car-builder-row input[type="number"] { width: 52px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; color: var(--text); font-size: 13px; text-align: center; outline: none; }
+    .team-num-label { font-size: 12px; color: var(--muted); flex-shrink: 0; font-weight: 600; }
+    .car-builder-row input[type="number"] { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; color: var(--text); font-size: 14px; text-align: center; outline: none; }
     .car-builder-row input[type="number"]:focus { border-color: var(--accent); }
+    .car-builder-row .team-num-input { width: 64px; font-weight: 700; }
+    .car-builder-row .max-input { width: 52px; }
     .max-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
     .btn-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; flex-shrink: 0; }
     .btn-del:hover { color: var(--accent2); }
@@ -606,14 +609,14 @@ function carCard(race, car, raceRegs, isPast) {
   return `
   <div class="car-card">
     <div class="car-header">
-      <div class="car-color-dot" style="background:${car.color}"></div>
-      <div class="car-label">${esc(car.label)}</div>
+      <div class="car-num">#${car.number ?? car.label}</div>
+      <div class="car-label">Team ${car.number ?? car.label}</div>
       <div class="car-count">${carRegs.length}/${car.maxDrivers}</div>
     </div>
     <div class="car-drivers">${driversHtml}</div>
     <div class="car-footer ${tpMode ? 'tp-visible' : ''}">
       <button class="btn-register" ${!canAssign ? 'disabled' : ''}
-        data-action="assign" data-raceid="${race.id}" data-carid="${car.id}" data-carlabel="${esc(car.label)}">
+        data-action="assign" data-raceid="${race.id}" data-carid="${car.id}" data-carlabel="Team ${car.number ?? car.label}">
         ${isPast ? 'Race Ended' : isFull ? 'Car Full' : 'Assign Driver'}
       </button>
     </div>
@@ -688,7 +691,7 @@ document.getElementById('root').addEventListener('click', e => {
 });
 
 // ── Add Race ──────────────────────────────────────────────────────────────
-carBuilders = [{ color: '#e53935', label: 'OM Endurance — Red', max: 2 }];
+carBuilders = [{ number: 1, max: 2 }];
 
 document.getElementById('addRaceBtn').addEventListener('click', () => {
   renderCarBuilders();
@@ -699,24 +702,26 @@ document.getElementById('cancelAddRace').addEventListener('click', () => {
   document.getElementById('addRaceOverlay').style.display = 'none';
 });
 document.getElementById('addCarBtn').addEventListener('click', () => {
-  carBuilders.push({ color: PRESET_COLORS[carBuilders.length % PRESET_COLORS.length], label: '', max: 2 });
+  const next = (carBuilders[carBuilders.length - 1]?.number || 0) + 1;
+  carBuilders.push({ number: Math.min(next, 99), max: 2 });
   renderCarBuilders();
 });
 
 function renderCarBuilders() {
   document.getElementById('carBuilders').innerHTML = carBuilders.map((c, i) => `
     <div class="car-builder-row">
-      <input type="color" value="${c.color}" data-idx="${i}" data-field="color" />
-      <input type="text" value="${c.label}" placeholder="e.g. OM Endurance — White" data-idx="${i}" data-field="label" />
-      <input type="number" value="${c.max}" min="1" max="6" title="Max drivers" data-idx="${i}" data-field="max" />
+      <span class="team-num-label">Team</span>
+      <input type="number" class="team-num-input" value="${c.number}" min="1" max="99" title="Team number" data-idx="${i}" data-field="number" />
+      <span class="max-label" style="margin-left:8px">Max</span>
+      <input type="number" class="max-input" value="${c.max}" min="1" max="6" title="Max drivers" data-idx="${i}" data-field="max" />
       <span class="max-label">drivers</span>
-      <button class="btn-del" data-idx="${i}" title="Remove car">✕</button>
+      <button class="btn-del" data-idx="${i}" title="Remove team">✕</button>
     </div>`).join('');
 
   document.getElementById('carBuilders').querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', () => {
       const idx = +inp.dataset.idx, field = inp.dataset.field;
-      carBuilders[idx][field] = field === 'max' ? +inp.value : inp.value;
+      carBuilders[idx][field] = +inp.value;
     });
   });
   document.getElementById('carBuilders').querySelectorAll('.btn-del').forEach(btn => {
@@ -742,8 +747,7 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
 
   const cars = carBuilders.map((c, i) => ({
     id: `car${i}_${Date.now()}`,
-    color: c.color || '#e53935',
-    label: c.label || `Car ${i + 1}`,
+    number: Math.min(99, Math.max(1, c.number || i + 1)),
     maxDrivers: Math.max(1, c.max || 2)
   }));
 
@@ -763,7 +767,7 @@ document.getElementById('submitAddRace').addEventListener('click', async () => {
   document.getElementById('raceFmt').value       = '';
   document.getElementById('raceDateStart').value = '';
   document.getElementById('raceDateEnd').value   = '';
-  carBuilders = [{ color: '#e53935', label: 'OM Endurance — Red', max: 2 }];
+  carBuilders = [{ number: 1, max: 2 }];
 });
 
 // ── TP Mode ───────────────────────────────────────────────────────────────
