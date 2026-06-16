@@ -577,6 +577,7 @@
           <th>#</th>
           <th>Name</th>
           <th>iRacing Username</th>
+          <th>Cust ID</th>
           <th>Car</th>
           <th>Affiliation</th>
           <th>Races</th>
@@ -679,6 +680,10 @@
     <div class="form-group">
       <label>iRacing Username</label>
       <input type="text" id="regIracing" placeholder="Exact iRacing display name" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>iRacing Customer ID</label>
+      <input type="text" id="regCustId" inputmode="numeric" placeholder="Numeric ID — found in your iRacing account / profile URL" autocomplete="off" />
     </div>
     <div class="form-group">
       <label>Car</label>
@@ -1203,6 +1208,7 @@ function openRegister(raceId, raceTrack) {
   document.getElementById('regError').classList.remove('show');
   document.getElementById('regName').value          = '';
   document.getElementById('regIracing').value       = '';
+  document.getElementById('regCustId').value        = '';
   document.getElementById('regCar').value           = '';
   document.getElementById('regAffiliation').value   = '';
   document.getElementById('regGroupCode').value     = '';
@@ -1232,6 +1238,7 @@ document.getElementById('registerOverlay').addEventListener('keydown', e => {
 document.getElementById('submitReg').addEventListener('click', async () => {
   const name    = document.getElementById('regName').value.trim();
   const iracing = document.getElementById('regIracing').value.trim();
+  const custId  = document.getElementById('regCustId').value.trim();
   const errEl   = document.getElementById('regError');
 
   const car         = document.getElementById('regCar').value;
@@ -1239,11 +1246,14 @@ document.getElementById('submitReg').addEventListener('click', async () => {
 
   if (!name)        { showErr(errEl, 'Please enter your name.'); return; }
   if (!iracing)     { showErr(errEl, 'Please enter your iRacing username.'); return; }
+  if (!custId)      { showErr(errEl, 'Please enter your iRacing Customer ID.'); return; }
+  if (!/^\d+$/.test(custId)) { showErr(errEl, 'Your iRacing Customer ID should be numbers only.'); return; }
   if (!car)         { showErr(errEl, 'Please select your car.'); return; }
   if (!affiliation) { showErr(errEl, 'Please select your affiliation.'); return; }
 
-  const dup = regs.find(r => r.raceId === pendingRaceId && r.iracing.toLowerCase() === iracing.toLowerCase());
-  if (dup) { showErr(errEl, 'That iRacing username is already registered for this race.'); return; }
+  const dup = regs.find(r => r.raceId === pendingRaceId &&
+    (r.iracing.toLowerCase() === iracing.toLowerCase() || (r.custId && r.custId === custId)));
+  if (dup) { showErr(errEl, 'That iRacing username or Customer ID is already registered for this race.'); return; }
 
   let groupId = null;
 
@@ -1270,7 +1280,7 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   try {
     await setDoc(doc(db, 'endurance_registrations', regId), {
       raceId: pendingRaceId, carId: null, groupId,
-      name, iracing, car, affiliation, timestamp: serverTimestamp()
+      name, iracing, custId, car, affiliation, timestamp: serverTimestamp()
     });
   } catch (err) {
     btn.disabled = false; btn.textContent = 'Register';
@@ -1531,9 +1541,9 @@ document.getElementById('submitEditRace').addEventListener('click', async () => 
 function buildRegistry() {
   const map = new Map();
   for (const reg of regs) {
-    const key = reg.iracing.toLowerCase();
+    const key = reg.custId ? `id:${reg.custId}` : reg.iracing.toLowerCase();
     if (!map.has(key)) {
-      map.set(key, { name: reg.name, iracing: reg.iracing, car: reg.car || '—', affiliation: reg.affiliation || '—', raceIds: new Set() });
+      map.set(key, { name: reg.name, iracing: reg.iracing, custId: reg.custId || '—', car: reg.car || '—', affiliation: reg.affiliation || '—', raceIds: new Set() });
     }
     map.get(key).raceIds.add(reg.raceId);
   }
@@ -1552,6 +1562,7 @@ document.getElementById('registryBtn').addEventListener('click', () => {
       <td style="color:var(--muted)">${i + 1}</td>
       <td style="font-weight:600">${esc(d.name)}</td>
       <td style="color:var(--muted)">${esc(d.iracing)}</td>
+      <td style="color:var(--muted);font-family:monospace">${esc(d.custId)}</td>
       <td style="font-size:13px">${esc(d.car)}</td>
       <td>${affiliBadge(d.affiliation)}</td>
       <td style="font-size:12px;color:var(--muted)">${[...d.raceIds].map(raceNameById).join(', ')}</td>
@@ -1583,10 +1594,10 @@ document.getElementById('registryPdfBtn').addEventListener('click', () => {
       </style></head><body>
       <h2>OpMo Endurance — Driver Registry</h2>
       <table>
-        <thead><tr><th>#</th><th>Name</th><th>iRacing Username</th><th>Car</th><th>Affiliation</th><th>Races</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th><th>iRacing Username</th><th>Cust ID</th><th>Car</th><th>Affiliation</th><th>Races</th></tr></thead>
         <tbody>${buildRegistry().map((d, i) => `
           <tr>
-            <td>${i + 1}</td><td>${esc(d.name)}</td><td>${esc(d.iracing)}</td>
+            <td>${i + 1}</td><td>${esc(d.name)}</td><td>${esc(d.iracing)}</td><td>${esc(d.custId)}</td>
             <td>${esc(d.car)}</td><td>${affilPrintChip(d.affiliation)}</td>
             <td>${[...d.raceIds].map(raceNameById).join(', ')}</td>
           </tr>`).join('')}
@@ -1599,38 +1610,38 @@ document.getElementById('registryPdfBtn').addEventListener('click', () => {
 
 // ── XLS Export ────────────────────────────────────────────────────────────
 document.getElementById('exportXlsBtn').addEventListener('click', () => {
-  const rows = [['Race', 'Team', 'Position (Start)', 'Position (Finish)', 'Driver Name', 'iRacing Username', 'Car', 'Affiliation']];
+  const rows = [['Race', 'Team', 'Position (Start)', 'Position (Finish)', 'Driver Name', 'iRacing Username', 'Cust ID', 'Car', 'Affiliation']];
   for (const race of races) {
     const raceRegs = regs.filter(r => r.raceId === race.id);
     for (const car of (race.cars || [])) {
       const carRegs = raceRegs.filter(r => r.carId === car.id);
       const result  = race.results?.[car.id] || {};
       for (const reg of carRegs) {
-        rows.push([race.track, `Team #${car.number ?? car.label}`, result.start || '', result.finish || '', reg.name, reg.iracing, reg.car || '', reg.affiliation || '']);
+        rows.push([race.track, `Team #${car.number ?? car.label}`, result.start || '', result.finish || '', reg.name, reg.iracing, reg.custId || '', reg.car || '', reg.affiliation || '']);
       }
       // Unassigned
     }
     const unassigned = raceRegs.filter(r => !r.carId);
     for (const reg of unassigned) {
-      rows.push([race.track, 'Unassigned', '', '', reg.name, reg.iracing, reg.car || '', reg.affiliation || '']);
+      rows.push([race.track, 'Unassigned', '', '', reg.name, reg.iracing, reg.custId || '', reg.car || '', reg.affiliation || '']);
     }
   }
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [22, 12, 14, 16, 20, 20, 28, 30].map(w => ({ wch: w }));
-  styleXlsSheet(ws, rows, 7);
+  ws['!cols'] = [22, 12, 14, 16, 20, 20, 12, 28, 30].map(w => ({ wch: w }));
+  styleXlsSheet(ws, rows, 8);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Race Roster');
   XLSX.writeFile(wb, 'OpMo_Endurance_Roster.xlsx');
 });
 
 document.getElementById('registryXlsBtn').addEventListener('click', () => {
-  const rows = [['#', 'Name', 'iRacing Username', 'Car', 'Affiliation', 'Races']];
+  const rows = [['#', 'Name', 'iRacing Username', 'Cust ID', 'Car', 'Affiliation', 'Races']];
   buildRegistry().forEach((d, i) => {
-    rows.push([i + 1, d.name, d.iracing, d.car, d.affiliation, [...d.raceIds].map(raceNameById).join(', ')]);
+    rows.push([i + 1, d.name, d.iracing, d.custId, d.car, d.affiliation, [...d.raceIds].map(raceNameById).join(', ')]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [4, 22, 20, 28, 30, 40].map(w => ({ wch: w }));
-  styleXlsSheet(ws, rows, 4);
+  ws['!cols'] = [4, 22, 20, 12, 28, 30, 40].map(w => ({ wch: w }));
+  styleXlsSheet(ws, rows, 5);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Driver Registry');
   XLSX.writeFile(wb, 'OpMo_Endurance_DriverRegistry.xlsx');
@@ -1880,13 +1891,14 @@ document.getElementById('importCsvBtn').addEventListener('click', () => {
 document.getElementById('csvFileInput').addEventListener('change', async e => {
   const files = [...e.target.files];
   if (!files.length) return;
-  let matched = 0, unmatched = [], badFiles = [], posSkipped = [];
+  let matched = 0, unmatched = [], badFiles = [], posSkipped = [], fuzzy = [];
   for (const f of files) {
     const res = importIracingCsv(await f.text());
     if (res === null) { badFiles.push(f.name); continue; }
     matched += res.matched;
     unmatched.push(...res.unmatched);
     posSkipped.push(...res.posSkipped);
+    fuzzy.push(...res.fuzzy);
   }
   const rep = document.getElementById('csvReport');
   rep.style.display = 'block';
@@ -1899,12 +1911,17 @@ document.getElementById('csvFileInput').addEventListener('change', async e => {
   if (posSkipped.length) {
     probs.push(`Laps filled but positions skipped (not assigned to a team): ${posSkipped.map(esc).join(', ')}`);
   }
+  // A fuzzy (name-suffix) match is informational, not an error — surface it so
+  // the TP can confirm the right driver was picked.
+  const fuzzyNote = fuzzy.length
+    ? ` Matched by name (verify): ${fuzzy.slice(0, 10).map(esc).join(', ')}${fuzzy.length > 10 ? ` +${fuzzy.length - 10} more` : ''}.`
+    : '';
   if (probs.length) {
     rep.style.background = 'rgba(229,57,53,.08)'; rep.style.border = '1px solid rgba(229,57,53,.25)'; rep.style.color = '#f0a0a0';
-    rep.innerHTML = `Filled ${matched} registered driver${matched !== 1 ? 's' : ''}. ${probs.join('. ')}.`;
+    rep.innerHTML = `Filled ${matched} registered driver${matched !== 1 ? 's' : ''}. ${probs.join('. ')}.${fuzzyNote}`;
   } else {
     rep.style.background = 'rgba(67,160,71,.08)'; rep.style.border = '1px solid rgba(67,160,71,.3)'; rep.style.color = '#81c784';
-    rep.textContent = `Filled ${matched} driver${matched !== 1 ? 's' : ''} from ${files.length} file${files.length !== 1 ? 's' : ''}. Review the values, then hit Save Results.`;
+    rep.innerHTML = `Filled ${matched} driver${matched !== 1 ? 's' : ''} from ${files.length} file${files.length !== 1 ? 's' : ''}. Review the values, then hit Save Results.${fuzzyNote}`;
   }
   e.target.value = '';
 });
@@ -1947,15 +1964,35 @@ function importIracingCsv(text) {
   const cStart = col(/^start(ing)?\s*pos/);
   const cLaps  = col(/laps?\s*comp/);
   const cName  = hdr.findIndex(h => h === 'name' || h === 'driver' || h === 'display name');
+  const cCust  = col(/^cust(omer)?\s*id$/);
 
   const raceRegs = regs.filter(r => r.raceId === resultsRaceId);
-  let matched = 0; const unmatched = [], posSkipped = [];
+  let matched = 0; const unmatched = [], posSkipped = [], fuzzy = [];
+
+  // iRacing appends a trailing digit to disambiguate duplicate display names
+  // (e.g. "Richard Davenport2"). Strip it so a registration entered as the
+  // base name still matches the CSV's suffixed name.
+  const baseName = s => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\d+$/, '');
 
   for (const row of rows.slice(hi + 1)) {
-    const name = (row[cName] || '').trim();
-    if (!name) continue;
-    const reg = raceRegs.find(r => r.iracing.trim().toLowerCase() === name.toLowerCase());
-    if (!reg) { unmatched.push(name); continue; }
+    const name   = (row[cName] || '').trim();
+    const custId = cCust >= 0 ? (row[cCust] || '').trim() : '';
+    if (!name && !custId) continue;
+    // Match by iRacing Customer ID first (stable, no duplicate-name ambiguity),
+    // then fall back to display-name match for registrations made before IDs
+    // were collected.
+    let reg = custId ? raceRegs.find(r => (r.custId || '').trim() === custId) : null;
+    if (!reg) reg = raceRegs.find(r => r.iracing.trim().toLowerCase() === name.toLowerCase());
+    if (!reg && name) {
+      // Fuzzy fallback: compare with any trailing duplicate-name digit removed,
+      // against both the iRacing username and the real name on file.
+      const target = baseName(name);
+      if (target) {
+        reg = raceRegs.find(r => baseName(r.iracing) === target || baseName(r.name) === target);
+        if (reg) fuzzy.push(`${name} → ${reg.name}`);
+      }
+    }
+    if (!reg) { unmatched.push(name || `Cust ID ${custId}`); continue; }
     matched++;
 
     if (cLaps >= 0) {
@@ -1974,7 +2011,7 @@ function importIracingCsv(text) {
       posSkipped.push(reg.name);
     }
   }
-  return { matched, unmatched, posSkipped };
+  return { matched, unmatched, posSkipped, fuzzy };
 }
 
 // ── Race Results view ─────────────────────────────────────────────────────
