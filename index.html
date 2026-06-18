@@ -291,6 +291,19 @@
     }
     .group-cluster-body { padding: 6px 0; }
 
+    /* ── Team codes panel (TP only) ── */
+    .team-codes-section { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+    .tc-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .tc-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .tc-code-btn {
+      font-family: monospace; letter-spacing: 0.12em; font-weight: 700; font-size: 13px;
+      background: rgba(229,57,53,.15); border: 1px solid rgba(229,57,53,.3); color: var(--accent2);
+      border-radius: 5px; padding: 4px 10px; cursor: pointer; transition: all 0.15s; flex-shrink: 0; min-width: 92px; text-align: center;
+    }
+    .tc-code-btn:hover { background: rgba(229,57,53,.25); color: #fff; }
+    .tc-members { font-size: 13px; color: var(--text); }
+    .tc-where { color: var(--muted); font-size: 12px; }
+
     /* ── Affiliation badge ── */
     .affil-badge {
       font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
@@ -970,6 +983,7 @@ function raceCard(race, isPast) {
       <div class="cars-grid">${carsHtml}</div>
       ${tpMode && !isPast ? `<button class="btn-add-team" data-action="add-team" data-raceid="${race.id}">+ Add Team</button>` : ''}
       ${unassignedSection(race, raceRegs, isPast)}
+      ${tpMode ? teamCodesSection(race, raceRegs) : ''}
       ${!isPast ? `<button class="btn-race-register" data-action="race-register" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">+ Register for this Race</button><button class="btn-withdraw" data-action="withdraw" data-raceid="${race.id}" data-racetrack="${esc(race.track)}">Withdraw</button>${calButton(race.id)}` : ''}
       ${tpMode ? `<div class="race-actions">
         <button class="btn-edit-race" data-action="edit-race" data-raceid="${race.id}">✏ Edit Race</button>
@@ -1071,6 +1085,34 @@ function unassignedSection(race, raceRegs, isPast) {
   </div>`;
 }
 
+// TP-only roster of every team code in a race (assigned or not), so the team
+// principal can look one up and share it with a driver who didn't copy it.
+function teamCodesSection(race, raceRegs) {
+  const groups = {};
+  for (const reg of raceRegs) {
+    if (reg.groupId) (groups[reg.groupId] = groups[reg.groupId] || []).push(reg);
+  }
+  const codes = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+  if (codes.length === 0) return '';
+
+  const rows = codes.map(([code, members]) => {
+    const names = members.map(m => {
+      const car = m.carId ? (race.cars || []).find(c => c.id === m.carId) : null;
+      const where = car ? `#${car.number ?? car.label}` : 'unassigned';
+      return `${esc(m.name)} <span class="tc-where">(${where})</span>`;
+    }).join(', ');
+    return `<div class="tc-row">
+      <button class="tc-code-btn" data-action="copy-code" data-code="${esc(code)}" title="Copy team code">${esc(code)} ⧉</button>
+      <div class="tc-members">${names}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="team-codes-section">
+    <div class="unassigned-label">Team Codes (${codes.length})</div>
+    <div class="tc-list">${rows}</div>
+  </div>`;
+}
+
 // Event delegation for dynamically rendered buttons
 document.getElementById('root').addEventListener('click', e => {
   const assignBtn   = e.target.closest('[data-action="assign"]');
@@ -1103,6 +1145,13 @@ document.getElementById('root').addEventListener('click', e => {
   if (calAdd) {
     addToCalendar(calAdd.dataset.raceid, calAdd.dataset.cal);
     closeCalMenus();
+  }
+  const copyCode = e.target.closest('[data-action="copy-code"]');
+  if (copyCode) {
+    const code = copyCode.dataset.code;
+    const done = () => { const o = copyCode.textContent; copyCode.textContent = 'Copied!'; setTimeout(() => { copyCode.textContent = o; }, 1200); };
+    if (navigator.clipboard) navigator.clipboard.writeText(code).then(done).catch(() => window.prompt('Team code:', code));
+    else window.prompt('Team code:', code);
   }
   if (remBtn) {
     removeReg(remBtn.dataset.regid);
