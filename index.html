@@ -277,6 +277,12 @@
       color: var(--accent2); padding: 12px 0 4px; font-family: monospace;
     }
     .group-code-hint { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 6px; }
+    .code-warning {
+      font-size: 12px; font-weight: 600; line-height: 1.45;
+      color: var(--accent2); background: rgba(229,57,53,.1);
+      border: 1px solid rgba(229,57,53,.3); border-radius: 6px;
+      padding: 8px 12px; margin: 4px 0 10px; text-align: center;
+    }
 
     /* ── Group cluster in unassigned list ── */
     .group-cluster { background: var(--bg3); border: 1px solid #333; border-radius: 8px; overflow: hidden; margin-bottom: 6px; }
@@ -747,7 +753,7 @@
         <button class="group-tab" data-gtype="join" type="button">Join Team</button>
       </div>
       <div class="group-section" id="groupCreateSection">
-        <div style="font-size:12px;color:var(--muted)">A team code will be generated after you register. Share it with your teammates so they can join.</div>
+        <div style="font-size:12px;color:var(--muted)">A team code will be generated after you register. <strong style="color:var(--accent2)">Copy it right away</strong> — you'll only see it once, so save it before closing the confirmation.</div>
       </div>
       <div class="group-section" id="groupJoinSection">
         <input type="text" id="regGroupCode" placeholder="Enter team code (e.g. WOLF)" autocomplete="off"
@@ -769,6 +775,8 @@
     <div id="regSuccessCodeWrap" style="display:none">
       <p style="font-size:13px;color:var(--muted);margin:4px 0 8px">Share this code with your teammates so they can join your group:</p>
       <div class="group-code-display" id="groupCodeDisplay">----</div>
+      <button class="btn-secondary" id="copyGroupCode" style="margin:4px auto 8px;display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:7px 16px">⧉ Copy code</button>
+      <div class="code-warning">⚠ Save this code now — you won't be able to see it again after you close this window.</div>
       <div class="group-code-hint">They select "Join Team" when registering and enter this code.</div>
     </div>
     <div class="modal-actions" style="justify-content:center;margin-top:20px">
@@ -1359,6 +1367,14 @@ function regSlug(iracing) {
 
 document.getElementById('closeRegSuccess').addEventListener('click', () => {
   document.getElementById('regSuccessOverlay').style.display = 'none';
+});
+
+document.getElementById('copyGroupCode').addEventListener('click', () => {
+  const btn  = document.getElementById('copyGroupCode');
+  const code = document.getElementById('groupCodeDisplay').textContent.trim();
+  const done = () => { btn.textContent = '✓ Copied!'; setTimeout(() => { btn.innerHTML = '⧉ Copy code'; }, 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(code).then(done).catch(() => window.prompt('Your team code:', code));
+  else window.prompt('Your team code:', code);
 });
 
 // ── Withdraw (driver self-service) ────────────────────────────────────────
