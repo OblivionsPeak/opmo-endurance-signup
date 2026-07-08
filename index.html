@@ -162,6 +162,15 @@
     }
     .btn-remove:hover { color: var(--accent2) !important; background: rgba(229,57,53,.1); }
 
+    /* TP row actions sharing the btn-remove look: 👥 set team, 🗑 remove from race */
+    .btn-team, .btn-remove-full {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 12px; padding: 3px 5px; border-radius: 4px;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    .btn-team:hover { color: var(--accent) !important; background: rgba(255,255,255,.06); }
+    .btn-remove-full:hover { color: var(--accent2) !important; background: rgba(229,57,53,.1); }
+
     .open-slot {
       height: 30px; border: 1px dashed var(--border); border-radius: 5px;
       display: flex; align-items: center; padding: 0 10px;
@@ -819,6 +828,22 @@
   </div>
 </div>
 
+<div class="overlay" id="teamAssignOverlay" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <h2 id="teamAssignTitle">Set Team</h2>
+    <div class="form-error" id="teamAssignError"></div>
+    <div class="form-group">
+      <label>Team code for this driver</label>
+      <select id="teamAssignSelect" style="font-size:14px"></select>
+    </div>
+    <div id="teamAssignNote" style="font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:4px"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelTeamAssign">Cancel</button>
+      <button class="btn-primary" id="submitTeamAssign">Save</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp }                                                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
@@ -1019,7 +1044,7 @@ function carCard(race, car, raceRegs, isPast) {
             <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
             <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
           </div>
-          ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Unassign driver">✕</button>` : ''}
+          ${tpMode ? `<button class="btn-team" data-action="set-team" data-regid="${reg.id}" title="Set this driver's team code">👥</button><button class="btn-remove" data-regid="${reg.id}" title="Unassign driver (back to the pool)">✕</button><button class="btn-remove-full" data-action="remove-full" data-regid="${reg.id}" title="Remove this driver from the race entirely">🗑</button>` : ''}
         </div>`;
     } else {
       driversHtml += `<div class="open-slot">Open slot ${i + 1}${canDrag ? '<span class="drag-hint"> — drag a driver here</span>' : ''}</div>`;
@@ -1075,7 +1100,7 @@ function unassignedSection(race, raceRegs, isPast) {
         <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
         <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
       </div>
-      ${tpMode ? `<button class="btn-remove" data-regid="${reg.id}" title="Remove">✕</button>` : ''}
+      ${tpMode ? `<button class="btn-team" data-action="set-team" data-regid="${reg.id}" title="Set this driver's team code">👥</button><button class="btn-remove" data-regid="${reg.id}" title="Remove this registration">✕</button>` : ''}
     </div>`;
 
   let html = '';
@@ -1164,6 +1189,10 @@ document.getElementById('root').addEventListener('click', e => {
   if (remBtn) {
     removeReg(remBtn.dataset.regid);
   }
+  const remFullBtn = e.target.closest('[data-action="remove-full"]');
+  if (remFullBtn) removeRegFull(remFullBtn.dataset.regid);
+  const setTeamBtn = e.target.closest('[data-action="set-team"]');
+  if (setTeamBtn) openSetTeam(setTeamBtn.dataset.regid);
   if (delRace) {
     deleteRace(delRace.dataset.raceid);
   }
@@ -1503,6 +1532,80 @@ document.getElementById('submitAssign').addEventListener('click', async () => {
   btn.disabled = false; btn.textContent = 'Assign';
   document.getElementById('assignOverlay').style.display = 'none';
 });
+
+// ── Set Team (TP only) ────────────────────────────────────────────────────
+// Move a driver into an existing team code, back to solo, or a fresh code.
+let pendingTeamRegId = null;
+
+function openSetTeam(regId) {
+  const reg = regs.find(r => r.id === regId);
+  if (!reg) return;
+  pendingTeamRegId = regId;
+
+  // every team code already in use for this race, with member names
+  const groups = {};
+  for (const r of regs) {
+    if (r.raceId === reg.raceId && r.groupId) (groups[r.groupId] = groups[r.groupId] || []).push(r);
+  }
+  const codes = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+
+  let opts = `<option value=""${!reg.groupId ? ' selected' : ''}>No team — solo driver</option>`;
+  for (const [code, members] of codes) {
+    const names = members.map(m => m.name).join(', ');
+    opts += `<option value="${esc(code)}"${reg.groupId === code ? ' selected' : ''}>👥 ${esc(code)} — ${esc(names)}</option>`;
+  }
+  opts += `<option value="__new">➕ New team (generate a code)</option>`;
+
+  document.getElementById('teamAssignTitle').textContent = `Set Team — ${reg.name}`;
+  document.getElementById('teamAssignError').classList.remove('show');
+  document.getElementById('teamAssignNote').textContent = reg.groupId
+    ? `Currently on team ${reg.groupId}.`
+    : 'Currently a solo driver.';
+  document.getElementById('teamAssignSelect').innerHTML = opts;
+  document.getElementById('teamAssignOverlay').style.display = 'flex';
+}
+
+document.getElementById('cancelTeamAssign').addEventListener('click', () => {
+  document.getElementById('teamAssignOverlay').style.display = 'none';
+});
+document.getElementById('teamAssignOverlay').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('submitTeamAssign').click();
+});
+document.getElementById('submitTeamAssign').addEventListener('click', async () => {
+  const reg = regs.find(r => r.id === pendingTeamRegId);
+  if (!reg) { document.getElementById('teamAssignOverlay').style.display = 'none'; return; }
+  const val = document.getElementById('teamAssignSelect').value;
+
+  let groupId = null;
+  let newCode = null;
+  if (val === '__new') {
+    do { newCode = genGroupCode(); }
+    while (regs.some(r => r.raceId === reg.raceId && r.groupId === newCode));
+    groupId = newCode;
+  } else if (val) {
+    groupId = val;
+  }
+
+  const btn = document.getElementById('submitTeamAssign');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await updateDoc(doc(db, 'endurance_registrations', pendingTeamRegId), { groupId });
+    document.getElementById('teamAssignOverlay').style.display = 'none';
+    if (newCode) alert(`New team code for ${reg.name}: ${newCode}\n\nShare it so teammates can join with it (it's also listed under Team Codes).`);
+  } catch (err) {
+    showErr(document.getElementById('teamAssignError'), 'Could not update the team — try again.');
+  }
+  btn.disabled = false; btn.textContent = 'Save';
+});
+
+// ── Remove from race entirely (TP only) ───────────────────────────────────
+// One action regardless of car assignment — deletes the registration doc.
+async function removeRegFull(regId) {
+  const reg = regs.find(r => r.id === regId);
+  if (!reg) return;
+  if (!confirm(`Remove ${reg.name} from this race entirely? Their registration is deleted (they can re-register).`)) return;
+  await deleteDoc(doc(db, 'endurance_registrations', regId));
+}
 
 // ── Remove / unassign ─────────────────────────────────────────────────────
 async function removeReg(regId) {
