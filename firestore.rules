@@ -27,5 +27,16 @@ service cloud.firestore {
       // Car assignment / unassignment: TP only.
       allow update: if request.auth != null;
     }
+
+    match /endurance_drivers/{driverId} {
+      allow read: if true;
+      // Driver profiles are self-service (no driver accounts exist), so
+      // create/update are public — same trust level as registration itself.
+      // Only profile-shaped fields are permitted.
+      allow create, update: if request.resource.data.keys().hasOnly(
+        ['name', 'iracing', 'custId', 'affiliation', 'cars', 'updatedAt']);
+      // Cleanup: TP only.
+      allow delete: if request.auth != null;
+    }
   }
 }

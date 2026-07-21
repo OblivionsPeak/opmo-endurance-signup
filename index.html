@@ -372,6 +372,38 @@
     .btn-registry.tp-visible { display: inline-block; }
     .btn-registry:hover { border-color: #888; color: #fff; }
 
+    /* ── Driver profile ── */
+    .profile-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+    .profile-name { font-size: 24px; font-weight: 800; }
+    .profile-sub  { font-size: 13px; color: var(--muted); font-family: monospace; }
+    .profile-stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 4px; }
+    .pstat {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 16px; text-align: center; min-width: 86px;
+    }
+    .pstat-num { font-family: 'Chakra Petch', monospace; font-size: 22px; font-weight: 700; }
+    .pstat-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+    .profile-section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
+    .car-choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+    .car-choice {
+      display: flex; align-items: center; gap: 8px; font-size: 13px;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; cursor: pointer; transition: all 0.15s; user-select: none;
+    }
+    .car-choice:hover { border-color: #555; }
+    .car-choice.checked { border-color: var(--accent); background: rgba(229,57,53,.08); }
+    .car-class-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); margin: 10px 0 6px; text-transform: uppercase; }
+    .profile-save-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+    .profile-saved-note { font-size: 12px; color: #81c784; display: none; }
+    .driver-name .name-link, .registry-table .name-link {
+      cursor: pointer; text-decoration: underline; text-decoration-color: rgba(255,255,255,.18); text-underline-offset: 3px;
+    }
+    .driver-name .name-link:hover, .registry-table .name-link:hover { color: var(--accent2); }
+    .comfort-chip {
+      display: inline-block; font-size: 11px; background: rgba(255,255,255,.05);
+      border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; margin: 2px 3px 2px 0; color: #ccc;
+    }
+
     /* ── Empty state ── */
     .empty { text-align: center; padding: 72px 20px; color: var(--muted); }
     .empty .e-icon { font-size: 44px; margin-bottom: 14px; }
@@ -543,6 +575,7 @@
     </div>
   </div>
   <div class="header-right">
+    <button class="btn-export" id="profileBtn">👤 My Profile</button>
     <button class="btn-export" id="resultsViewBtn">🏆 Race Results</button>
     <button class="btn-registry" id="registryBtn">👥 Driver Registry</button>
     <button class="btn-export" id="exportBtn">⬇ Roster PDF</button>
@@ -868,10 +901,36 @@
   </div>
 </div>
 
+<!-- ══ DRIVER PROFILE ══ -->
+<div class="registry-overlay" id="profileOverlay">
+  <div class="registry-header">
+    <h2>Driver Profile</h2>
+    <button class="btn-secondary" id="closeProfile" style="padding:7px 16px;font-size:13px">✕ Close</button>
+  </div>
+  <div class="registry-body" id="profileBody"></div>
+</div>
+
+<!-- ══ PROFILE LOOKUP ══ -->
+<div class="overlay" id="profileFindOverlay" style="display:none">
+  <div class="modal" style="max-width:400px">
+    <h2>Find Your Profile</h2>
+    <div class="form-error" id="profileFindError"></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">Enter your iRacing Customer ID or username. Profiles are created automatically the first time you register for a race.</p>
+    <div class="form-group">
+      <label>Customer ID or iRacing Username</label>
+      <input type="text" id="profileFindInput" placeholder="e.g. 123456 or your display name" autocomplete="off" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelProfileFind">Cancel</button>
+      <button class="btn-primary" id="submitProfileFind">Open Profile</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp }                                                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
-         onSnapshot, serverTimestamp, query, orderBy }                       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+         onSnapshot, serverTimestamp, query, orderBy, arrayUnion }           from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 // ── Firebase ──────────────────────────────────────────────────────────────
@@ -890,8 +949,18 @@ const auth = getAuth(app);
 // (Authentication → Users) — see FIREBASE-SETUP.md.
 const TP_EMAIL = 'tp@opmo-endurance.app';
 
+// Car catalogue — must stay in sync with the #regCar dropdown in the HTML
+const CAR_CLASSES = {
+  GTP:  ['Acura ARX-06 GTP', 'BMW M Hybrid V8', 'Cadillac V-Series.R GTP', 'Nissan GTP ZX-T', 'Porsche 963 GTP'],
+  LMP2: ['Dallara P217 LMP2'],
+  GT3:  ['Acura NSX GT3 EVO 22', 'Aston Martin Vantage GT3 EVO', 'Audi R8 LMS EVO II GT3', 'BMW M4 GT3 EVO',
+         'Chevrolet Corvette Z06 GT3.R', 'Ferrari 296 GT3', 'Ferrari 488 GT3 Evo 2020', 'Ford GT GT3',
+         'Ford Mustang GT3', 'Lamborghini Huracán GT3 EVO', 'McLaren 720S GT3 EVO', 'Mercedes-AMG GT3 2020',
+         'Porsche 911 GT3 R (992)'],
+};
+
 // ── State ─────────────────────────────────────────────────────────────────
-let races = [], regs = [];
+let races = [], regs = [], drivers = [];
 let pendingRaceId = null;
 let pendingAssignCarId = null, pendingAssignRaceId = null, pendingAssignCarLabel = null;
 let pendingAssignSlots = 0;
@@ -912,6 +981,9 @@ onSnapshot(query(collection(db, 'endurance_races'), orderBy('dateStart', 'asc'))
 onSnapshot(collection(db, 'endurance_registrations'), snap => {
   regs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   render();
+});
+onSnapshot(collection(db, 'endurance_drivers'), snap => {
+  drivers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 });
 
 // ── Render ────────────────────────────────────────────────────────────────
@@ -1070,7 +1142,7 @@ function carCard(race, car, raceRegs, isPast) {
         <div class="driver-entry"${canDrag ? ` draggable="true" data-drag="${reg.id}"` : ''}>
           <span class="driver-num">${i + 1}</span>
           <div class="driver-info">
-            <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
+            <div class="driver-name"><span class="name-link" data-action="profile" data-custid="${esc(reg.custId || '')}" data-iracing="${esc(reg.iracing)}" title="View driver profile">${esc(reg.name)}</span> ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
             <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
           </div>
           ${tpMode ? `<button class="btn-team" data-action="set-team" data-regid="${reg.id}" title="Set this driver's team code">👥</button><button class="btn-remove" data-regid="${reg.id}" title="Unassign driver (back to the pool)">✕</button><button class="btn-remove-full" data-action="remove-full" data-regid="${reg.id}" title="Remove this driver from the race entirely">🗑</button>` : ''}
@@ -1126,7 +1198,7 @@ function unassignedSection(race, raceRegs, isPast) {
   const driverRow = reg => `
     <div class="unassigned-driver"${canDrag ? ` draggable="true" data-drag="${reg.id}"` : ''}>
       <div class="driver-info">
-        <div class="driver-name">${esc(reg.name)} ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
+        <div class="driver-name"><span class="name-link" data-action="profile" data-custid="${esc(reg.custId || '')}" data-iracing="${esc(reg.iracing)}" title="View driver profile">${esc(reg.name)}</span> ${reg.affiliation ? affiliBadge(reg.affiliation) : ''}</div>
         <div class="driver-iracing">${esc(reg.iracing)}${reg.car ? ` · ${esc(reg.car)}` : ''}</div>
       </div>
       ${tpMode ? `<button class="btn-team" data-action="set-team" data-regid="${reg.id}" title="Set this driver's team code">👥</button><button class="btn-remove" data-regid="${reg.id}" title="Remove this registration">✕</button>` : ''}
@@ -1406,6 +1478,18 @@ document.getElementById('submitReg').addEventListener('click', async () => {
   btn.disabled = false; btn.textContent = 'Register';
   document.getElementById('registerOverlay').style.display = 'none';
 
+  // Upsert the driver's profile: identity fields refresh, their chosen car
+  // joins the comfortable list (arrayUnion — never clobbers prior picks).
+  try {
+    const existing = findProfileDoc(custId, iracing);
+    const profId = existing?.id || `c${custId}`;
+    await setDoc(doc(db, 'endurance_drivers', profId), {
+      name, iracing, custId, affiliation,
+      cars: arrayUnion(car),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (err) { /* profile upsert is best-effort — registration already succeeded */ }
+
   const raceTrack = races.find(r => r.id === pendingRaceId)?.track || 'this race';
   document.getElementById('regSuccessMsg').textContent =
     `Your entry for ${raceTrack} has been recorded. The team principal will assign you to a car.`;
@@ -1514,7 +1598,7 @@ function openAssign(raceId, carId, carLabel) {
   }
   if (solos.length) {
     opts += `<optgroup label="Solo Drivers">`;
-    solos.forEach(r => { opts += `<option value="${r.id}">${esc(r.name)} (${esc(r.iracing)})</option>`; });
+    solos.forEach(r => { opts += `<option value="${r.id}">${esc(r.name)} (${esc(r.iracing)})${comfortSummary(r)}</option>`; });
     opts += `</optgroup>`;
   }
 
@@ -1561,6 +1645,16 @@ document.getElementById('submitAssign').addEventListener('click', async () => {
   btn.disabled = false; btn.textContent = 'Assign';
   document.getElementById('assignOverlay').style.display = 'none';
 });
+
+// " · comfortable: GTP, GT3" suffix for TP assign options, from the profile
+function comfortSummary(reg) {
+  const prof = findProfileDoc(reg.custId, reg.iracing);
+  if (!prof?.cars?.length) return '';
+  const classes = Object.entries(CAR_CLASSES)
+    .filter(([, cars]) => cars.some(c => prof.cars.includes(c)))
+    .map(([cls]) => cls);
+  return classes.length ? ` · comfortable: ${classes.join(', ')}` : '';
+}
 
 // ── Set Team (TP only) ────────────────────────────────────────────────────
 // Move a driver into an existing team code, back to solo, or a fresh code.
@@ -1824,7 +1918,7 @@ document.getElementById('registryBtn').addEventListener('click', () => {
   tbody.innerHTML = drivers.map((d, i) => `
     <tr>
       <td style="color:var(--muted)">${i + 1}</td>
-      <td style="font-weight:600">${esc(d.name)}</td>
+      <td style="font-weight:600"><span class="name-link" data-action="profile" data-custid="${esc(d.custId === '—' ? '' : d.custId)}" data-iracing="${esc(d.iracing)}" title="View driver profile">${esc(d.name)}</span></td>
       <td style="color:var(--muted)">${esc(d.iracing)}</td>
       <td style="color:var(--muted);font-family:monospace">${esc(d.custId)}</td>
       <td style="font-size:13px">${esc(d.car)}</td>
@@ -2422,6 +2516,178 @@ document.getElementById('resultsViewXlsBtn').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Race Results');
   XLSX.writeFile(wb, 'OpMo_Endurance_Results.xlsx');
+});
+
+// ── Driver Profiles ───────────────────────────────────────────────────────
+// Profile docs live in endurance_drivers, keyed c<custId> (preferred) or
+// u<iracing-slug>. Race history and finishes are DERIVED from registrations
+// + race results — nothing extra to maintain.
+let profileCustId = null, profileIracing = null;
+
+function findProfileDoc(custId, iracing) {
+  const cid = String(custId || '').trim();
+  if (cid) {
+    const byId = drivers.find(d => String(d.custId || '').trim() === cid);
+    if (byId) return byId;
+  }
+  const slug = iracing ? regSlug(iracing) : null;
+  return slug ? drivers.find(d => d.iracing && regSlug(d.iracing) === slug) : null;
+}
+
+function profileRegs(custId, iracing) {
+  const cid = String(custId || '').trim();
+  const slug = iracing ? regSlug(iracing) : null;
+  return regs.filter(r =>
+    (cid && String(r.custId || '').trim() === cid) ||
+    (slug && regSlug(r.iracing) === slug));
+}
+
+function openProfile(custId, iracing) {
+  const history = profileRegs(custId, iracing);
+  const prof = findProfileDoc(custId, iracing);
+  if (!prof && history.length === 0) {
+    alert('No profile or registrations found for that driver. Profiles are created when you register for a race.');
+    return;
+  }
+  profileCustId = String(custId || prof?.custId || history[0]?.custId || '').trim();
+  profileIracing = iracing || prof?.iracing || history[0]?.iracing || '';
+
+  const name = prof?.name || history[0]?.name || profileIracing;
+  const affiliation = prof?.affiliation || history[0]?.affiliation || '';
+  const comfortable = new Set(prof?.cars || []);
+
+  // Race history rows, newest first, with team + finish joined from the race doc
+  const rows = history
+    .map(reg => {
+      const race = races.find(r => r.id === reg.raceId);
+      if (!race) return null;
+      const car = reg.carId ? (race.cars || []).find(c => c.id === reg.carId) : null;
+      const result = car ? race.results?.[car.id] : null;
+      return { reg, race, car, result, when: ts(race.dateStart || race.date) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.when - a.when);
+
+  const finished = rows.filter(r => r.result?.finish);
+  const podiums = finished.filter(r => r.result.finish <= 3).length;
+  const best = finished.length ? Math.min(...finished.map(r => r.result.finish)) : null;
+  const totalLaps = rows.reduce((a, r) => a + (r.reg.laps || 0), 0);
+
+  const historyHtml = rows.length ? `
+    <table class="registry-table">
+      <thead><tr><th>Race</th><th>Date</th><th>Team</th><th>Car</th><th>Start</th><th>Finish</th><th>Laps</th></tr></thead>
+      <tbody>${rows.map(({ reg, race, car, result }) => `
+        <tr>
+          <td style="font-weight:600">${esc(race.track)}${race.format ? ` <span style="color:var(--muted);font-weight:400">· ${esc(race.format)}</span>` : ''}</td>
+          <td style="color:var(--muted);font-size:12px">${new Date(ts(race.dateStart || race.date)).toLocaleDateString('en-US')}</td>
+          <td>${car ? `#${car.number ?? car.label}${car.name ? ` ${esc(car.name)}` : ''}` : '<span style="color:var(--muted)">unassigned</span>'}</td>
+          <td style="font-size:13px">${esc(reg.car || '—')}</td>
+          <td style="color:var(--muted)">${result?.start ? `P${result.start}` : '—'}</td>
+          <td style="font-weight:700">${car ? (ts(race.dateEnd || race.dateStart || race.date) < Date.now() ? finishLabel(result?.finish) : '—') : '—'}</td>
+          <td>${reg.laps ?? '—'}</td>
+        </tr>`).join('')}</tbody>
+    </table>`
+    : '<p style="color:var(--muted);font-size:13px">No race entries yet.</p>';
+
+  const carChoices = Object.entries(CAR_CLASSES).map(([cls, cars]) => `
+    <div class="car-class-tag">${cls}</div>
+    <div class="car-choice-grid">${cars.map(c => `
+      <label class="car-choice ${comfortable.has(c) ? 'checked' : ''}">
+        <input type="checkbox" class="comfort-car" value="${esc(c)}" ${comfortable.has(c) ? 'checked' : ''} style="accent-color:var(--accent)">
+        <span>${esc(c)}</span>
+      </label>`).join('')}</div>`).join('');
+
+  document.getElementById('profileBody').innerHTML = `
+    <div class="profile-head">
+      <div>
+        <div class="profile-name">${esc(name)} ${affiliation ? affiliBadge(affiliation) : ''}</div>
+        <div class="profile-sub">${esc(profileIracing)}${profileCustId ? ` · Cust ID ${esc(profileCustId)}` : ''}</div>
+      </div>
+    </div>
+    <div class="profile-stats">
+      <div class="pstat"><div class="pstat-num">${rows.length}</div><div class="pstat-label">Races</div></div>
+      <div class="pstat"><div class="pstat-num">${best ? `P${best}` : '—'}</div><div class="pstat-label">Best Finish</div></div>
+      <div class="pstat"><div class="pstat-num">${podiums}</div><div class="pstat-label">Podiums</div></div>
+      <div class="pstat"><div class="pstat-num">${totalLaps || '—'}</div><div class="pstat-label">Laps Logged</div></div>
+    </div>
+    <div class="profile-section-label">Comfortable Cars <span style="font-weight:400;text-transform:none;letter-spacing:0">— tick every car you're happy to race, then save</span></div>
+    ${carChoices}
+    <div class="profile-save-row">
+      <button class="btn-primary" id="saveProfileCars">Save Comfortable Cars</button>
+      <span class="profile-saved-note" id="profileSavedNote">✓ Saved</span>
+    </div>
+    <div class="profile-section-label">Race History &amp; Finishes</div>
+    ${historyHtml}`;
+
+  // live checked-state styling + save
+  document.querySelectorAll('.comfort-car').forEach(cb =>
+    cb.addEventListener('change', () => cb.closest('.car-choice').classList.toggle('checked', cb.checked)));
+  document.getElementById('saveProfileCars').addEventListener('click', saveProfileCars);
+
+  document.getElementById('profileOverlay').classList.add('open');
+}
+
+async function saveProfileCars() {
+  const cars = [...document.querySelectorAll('.comfort-car:checked')].map(cb => cb.value);
+  const prof = findProfileDoc(profileCustId, profileIracing);
+  const history = profileRegs(profileCustId, profileIracing);
+  const docId = prof?.id || (profileCustId ? `c${profileCustId}` : `u${regSlug(profileIracing)}`);
+  const btn = document.getElementById('saveProfileCars');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await setDoc(doc(db, 'endurance_drivers', docId), {
+      name: prof?.name || history[0]?.name || profileIracing,
+      iracing: profileIracing,
+      custId: profileCustId || null,
+      affiliation: prof?.affiliation || history[0]?.affiliation || null,
+      cars,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    const note = document.getElementById('profileSavedNote');
+    note.style.display = 'inline';
+    setTimeout(() => { note.style.display = 'none'; }, 2000);
+  } catch (err) {
+    alert('Could not save — please try again.');
+  }
+  btn.disabled = false; btn.textContent = 'Save Comfortable Cars';
+}
+
+// clickable driver names anywhere on the page (race cards, registry, pool)
+document.addEventListener('click', e => {
+  const link = e.target.closest('[data-action="profile"]');
+  if (link) openProfile(link.dataset.custid, link.dataset.iracing);
+});
+
+document.getElementById('closeProfile').addEventListener('click', () => {
+  document.getElementById('profileOverlay').classList.remove('open');
+});
+
+// header "My Profile" → lookup by Cust ID or username
+document.getElementById('profileBtn').addEventListener('click', () => {
+  document.getElementById('profileFindError').classList.remove('show');
+  document.getElementById('profileFindInput').value = '';
+  document.getElementById('profileFindOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('profileFindInput').focus(), 50);
+});
+document.getElementById('cancelProfileFind').addEventListener('click', () => {
+  document.getElementById('profileFindOverlay').style.display = 'none';
+});
+document.getElementById('profileFindOverlay').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('submitProfileFind').click();
+});
+document.getElementById('submitProfileFind').addEventListener('click', () => {
+  const q = document.getElementById('profileFindInput').value.trim();
+  const errEl = document.getElementById('profileFindError');
+  if (!q) { showErr(errEl, 'Please enter your Customer ID or username.'); return; }
+  const isId = /^\d+$/.test(q);
+  const custId = isId ? q : '';
+  const iracing = isId ? '' : q;
+  if (!findProfileDoc(custId, iracing) && profileRegs(custId, iracing).length === 0) {
+    showErr(errEl, 'Nothing found. Profiles appear after your first race registration — check the spelling or use your numeric Customer ID.');
+    return;
+  }
+  document.getElementById('profileFindOverlay').style.display = 'none';
+  openProfile(custId, iracing);
 });
 
 // ── Affiliation colours (screen badges are in CSS; these drive print + XLS) ──
