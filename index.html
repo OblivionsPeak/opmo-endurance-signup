@@ -1490,6 +1490,7 @@ document.getElementById('submitReg').addEventListener('click', async () => {
       updatedAt: serverTimestamp(),
     }, { merge: true });
   } catch (err) { /* profile upsert is best-effort — registration already succeeded */ }
+  rememberIdentity(custId, iracing);
 
   const raceTrack = races.find(r => r.id === pendingRaceId)?.track || 'this race';
   document.getElementById('regSuccessMsg').textContent =
@@ -2534,6 +2535,22 @@ document.getElementById('resultsViewXlsBtn').addEventListener('click', () => {
   XLSX.writeFile(wb, 'OpMo_Endurance_Results.xlsx');
 });
 
+// ── Remembered identity ("My Profile" without retyping) ───────────────────
+// Saved on registration and on a successful My Profile lookup — never when
+// merely viewing someone else's profile.
+const IDENTITY_KEY = 'opmoDriverIdentity';
+function savedIdentity() {
+  try { return JSON.parse(localStorage.getItem(IDENTITY_KEY)) || null; }
+  catch { return null; }
+}
+function rememberIdentity(custId, iracing) {
+  try { localStorage.setItem(IDENTITY_KEY, JSON.stringify({ custId: custId || '', iracing: iracing || '' })); }
+  catch { /* private-mode etc. — feature just stays manual */ }
+}
+function forgetIdentity() {
+  try { localStorage.removeItem(IDENTITY_KEY); } catch { }
+}
+
 // ── Driver Profiles ───────────────────────────────────────────────────────
 // Profile docs live in endurance_drivers, keyed c<custId> (preferred) or
 // u<iracing-slug>. Race history and finishes are DERIVED from registrations
@@ -2613,11 +2630,16 @@ function openProfile(custId, iracing) {
         <span>${esc(c)}</span>
       </label>`).join('')}</div>`).join('');
 
+  const saved = savedIdentity();
+  const isMe = saved && ((profileCustId && saved.custId === profileCustId) ||
+    (!profileCustId && saved.iracing && profileIracing && regSlug(saved.iracing) === regSlug(profileIracing)));
+
   document.getElementById('profileBody').innerHTML = `
     <div class="profile-head">
       <div>
         <div class="profile-name">${esc(name)} ${affiliation ? affiliBadge(affiliation) : ''}</div>
         <div class="profile-sub">${esc(profileIracing)}${profileCustId ? ` · Cust ID ${esc(profileCustId)}` : ''}</div>
+        ${isMe ? `<div style="font-size:11px;color:#81c784;margin-top:4px">✓ This is you — “My Profile” opens here automatically. <span id="switchIdentity" style="color:var(--muted);cursor:pointer;text-decoration:underline">Not you? Switch driver</span></div>` : ''}
       </div>
     </div>
     <div class="profile-stats">
@@ -2639,6 +2661,11 @@ function openProfile(custId, iracing) {
   document.querySelectorAll('.comfort-car').forEach(cb =>
     cb.addEventListener('change', () => cb.closest('.car-choice').classList.toggle('checked', cb.checked)));
   document.getElementById('saveProfileCars').addEventListener('click', saveProfileCars);
+  document.getElementById('switchIdentity')?.addEventListener('click', () => {
+    forgetIdentity();
+    document.getElementById('profileOverlay').classList.remove('open');
+    document.getElementById('profileBtn').click();
+  });
 
   document.getElementById('profileOverlay').classList.add('open');
 }
@@ -2678,8 +2705,14 @@ document.getElementById('closeProfile').addEventListener('click', () => {
   document.getElementById('profileOverlay').classList.remove('open');
 });
 
-// header "My Profile" → lookup by Cust ID or username
+// header "My Profile" → remembered identity opens directly; else lookup
 document.getElementById('profileBtn').addEventListener('click', () => {
+  const saved = savedIdentity();
+  if (saved && (saved.custId || saved.iracing) &&
+      (findProfileDoc(saved.custId, saved.iracing) || profileRegs(saved.custId, saved.iracing).length)) {
+    openProfile(saved.custId, saved.iracing);
+    return;
+  }
   document.getElementById('profileFindError').classList.remove('show');
   document.getElementById('profileFindInput').value = '';
   document.getElementById('profileFindOverlay').style.display = 'flex';
@@ -2703,6 +2736,7 @@ document.getElementById('submitProfileFind').addEventListener('click', () => {
     return;
   }
   document.getElementById('profileFindOverlay').style.display = 'none';
+  rememberIdentity(custId, iracing);
   openProfile(custId, iracing);
 });
 
