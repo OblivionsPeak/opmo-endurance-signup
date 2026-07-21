@@ -575,6 +575,7 @@
     </div>
   </div>
   <div class="header-right">
+    <button class="btn-export" id="teammatesBtn">🤝 Find Teammates</button>
     <button class="btn-export" id="profileBtn">👤 My Profile</button>
     <button class="btn-export" id="resultsViewBtn">🏆 Race Results</button>
     <button class="btn-registry" id="registryBtn">👥 Driver Registry</button>
@@ -909,6 +910,25 @@
     <button class="btn-secondary" id="closeProfile" style="padding:7px 16px;font-size:13px">✕ Close</button>
   </div>
   <div class="registry-body" id="profileBody"></div>
+</div>
+
+<!-- ══ FIND TEAMMATES (public driver directory) ══ -->
+<div class="registry-overlay" id="teammatesOverlay">
+  <div class="registry-header">
+    <h2>Find Teammates</h2>
+    <input type="text" id="tmSearch" placeholder="Filter by name…" autocomplete="off"
+      style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;width:200px" />
+    <select id="tmCarFilter"
+      style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;max-width:260px"></select>
+    <button class="btn-secondary" id="closeTeammates" style="padding:7px 16px;font-size:13px;margin-left:auto">✕ Close</button>
+  </div>
+  <div class="registry-body">
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Click a driver to see their full profile — race history, finishes, and every car they're comfortable in. Add your own via <strong>My Profile</strong> so teammates can find you.</p>
+    <table class="registry-table">
+      <thead><tr><th>Driver</th><th>iRacing Username</th><th>Affiliation</th><th>Comfortable Cars</th><th>Races</th></tr></thead>
+      <tbody id="teammatesBody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ══ PROFILE LOOKUP ══ -->
@@ -2738,6 +2758,48 @@ document.getElementById('submitProfileFind').addEventListener('click', () => {
   document.getElementById('profileFindOverlay').style.display = 'none';
   rememberIdentity(custId, iracing);
   openProfile(custId, iracing);
+});
+
+// ── Find Teammates (public driver directory) ──────────────────────────────
+function renderTeammates() {
+  const q = document.getElementById('tmSearch').value.trim().toLowerCase();
+  const carFilter = document.getElementById('tmCarFilter').value;
+  const inFilter = d => {
+    if (!carFilter) return true;
+    if (carFilter.startsWith('class:')) {
+      const cars = CAR_CLASSES[carFilter.slice(6)] || [];
+      return d.comfort.some(c => cars.includes(c));
+    }
+    return d.comfort.includes(carFilter);
+  };
+  const list = buildRegistry()
+    .filter(d => (!q || d.name.toLowerCase().includes(q) || d.iracing.toLowerCase().includes(q)) && inFilter(d));
+  document.getElementById('teammatesBody').innerHTML = list.length ? list.map(d => `
+    <tr>
+      <td style="font-weight:600"><span class="name-link" data-action="profile" data-custid="${esc(d.custId === '—' ? '' : d.custId)}" data-iracing="${esc(d.iracing === '—' ? '' : d.iracing)}" title="View driver profile">${esc(d.name)}</span></td>
+      <td style="color:var(--muted)">${esc(d.iracing)}</td>
+      <td>${affiliBadge(d.affiliation)}</td>
+      <td style="max-width:320px">${d.comfort.length ? d.comfort.map(c => `<span class="comfort-chip">${esc(c)}</span>`).join('') : '<span style="color:var(--muted);font-style:italic">not set yet</span>'}</td>
+      <td style="color:var(--muted)">${d.raceIds.size}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="color:var(--muted);font-style:italic;padding:24px">No drivers match${carFilter ? ' that car' : ''}.</td></tr>`;
+}
+
+document.getElementById('teammatesBtn').addEventListener('click', () => {
+  const sel = document.getElementById('tmCarFilter');
+  sel.innerHTML = `<option value="">All cars &amp; classes</option>` +
+    Object.entries(CAR_CLASSES).map(([cls, cars]) =>
+      `<option value="class:${cls}">— Any ${cls} —</option>` +
+      cars.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
+    ).join('');
+  document.getElementById('tmSearch').value = '';
+  renderTeammates();
+  document.getElementById('teammatesOverlay').classList.add('open');
+});
+document.getElementById('tmSearch').addEventListener('input', renderTeammates);
+document.getElementById('tmCarFilter').addEventListener('change', renderTeammates);
+document.getElementById('closeTeammates').addEventListener('click', () => {
+  document.getElementById('teammatesOverlay').classList.remove('open');
 });
 
 // ── Affiliation colours (screen badges are in CSS; these drive print + XLS) ──
