@@ -1918,29 +1918,58 @@ document.getElementById('submitEditRace').addEventListener('click', async () => 
 });
 
 // ── Driver Registry ───────────────────────────────────────────────────────
+// One row per human. Old registrations lack custId and usernames/names drift
+// ("Cam" vs "Cam Jordan"), so entries merge when ANY of these match:
+// Customer ID, iRacing-username slug, or normalized full name. Two entries
+// with DIFFERENT Customer IDs are never merged, whatever their names.
 function buildRegistry() {
-  const map = new Map();
-  for (const reg of regs) {
-    const key = reg.custId ? `id:${reg.custId}` : reg.iracing.toLowerCase();
-    if (!map.has(key)) {
-      map.set(key, { name: reg.name, iracing: reg.iracing, custId: reg.custId || '—', car: reg.car || '—', affiliation: reg.affiliation || '—', raceIds: new Set() });
+  const entries = [];
+  const byCust = new Map(), bySlug = new Map(), byName = new Map();
+  const normName = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  const upsert = (src) => {
+    const cid  = String(src.custId || '').trim();
+    const slug = src.iracing ? regSlug(src.iracing) : '';
+    const nn   = normName(src.name);
+
+    let e = (cid && byCust.get(cid)) || (slug && bySlug.get(slug)) || null;
+    if (!e && nn) {
+      const cand = byName.get(nn);
+      // name-only merge is allowed unless it would fuse two distinct Cust IDs
+      if (cand && !(cid && cand.custId !== '—' && cand.custId !== cid)) e = cand;
     }
-    map.get(key).raceIds.add(reg.raceId);
-  }
+
+    if (!e) {
+      e = { name: src.name || src.iracing || '—', iracing: src.iracing || '—',
+            custId: cid || '—', car: src.car || '—',
+            affiliation: src.affiliation || '—', raceIds: new Set() };
+      entries.push(e);
+    } else {
+      if (e.custId === '—' && cid) e.custId = cid;
+      if (e.iracing === '—' && src.iracing) e.iracing = src.iracing;
+      if (e.car === '—' && src.car) e.car = src.car;
+      if (e.affiliation === '—' && src.affiliation) e.affiliation = src.affiliation;
+      // keep the most complete name ("Cam Jordan" beats "Cam")
+      if (src.name && src.name.length > e.name.length) e.name = src.name;
+    }
+    if (cid)  byCust.set(cid, e);
+    if (slug) bySlug.set(slug, e);
+    if (normName(e.name)) byName.set(normName(e.name), e);
+    return e;
+  };
+
+  for (const reg of regs) upsert(reg).raceIds.add(reg.raceId);
   // Profile docs without any registration still belong in the registry
   for (const d of drivers) {
     if (d.id === 'u_rules_check') continue; // rules smoke-test doc, not a driver
     if (!d.iracing && !d.custId) continue;
-    const key = d.custId ? `id:${d.custId}` : (d.iracing || '').toLowerCase();
-    if (!map.has(key)) {
-      map.set(key, { name: d.name || d.iracing, iracing: d.iracing || '—', custId: d.custId || '—', car: '—', affiliation: d.affiliation || '—', raceIds: new Set() });
-    }
+    upsert(d);
   }
   // Attach each driver's comfortable-cars list from their profile
-  for (const v of map.values()) {
+  for (const v of entries) {
     v.comfort = findProfileDoc(v.custId === '—' ? '' : v.custId, v.iracing === '—' ? '' : v.iracing)?.cars || [];
   }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function raceNameById(id) {
@@ -2590,9 +2619,16 @@ function findProfileDoc(custId, iracing) {
 function profileRegs(custId, iracing) {
   const cid = String(custId || '').trim();
   const slug = iracing ? regSlug(iracing) : null;
-  return regs.filter(r =>
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  // name of this driver from any directly-matched reg, for catching old
+  // pre-custId entries registered under a variant username
+  const direct = regs.filter(r =>
     (cid && String(r.custId || '').trim() === cid) ||
     (slug && regSlug(r.iracing) === slug));
+  const names = new Set(direct.map(r => norm(r.name)).filter(Boolean));
+  return regs.filter(r =>
+    direct.includes(r) ||
+    (!String(r.custId || '').trim() && names.has(norm(r.name))));
 }
 
 function openProfile(custId, iracing) {
