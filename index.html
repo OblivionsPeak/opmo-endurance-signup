@@ -641,6 +641,7 @@
           <th>Cust ID</th>
           <th>Car</th>
           <th>Affiliation</th>
+          <th>Comfortable Cars</th>
           <th>Races</th>
         </tr>
       </thead>
@@ -1905,6 +1906,19 @@ function buildRegistry() {
     }
     map.get(key).raceIds.add(reg.raceId);
   }
+  // Profile docs without any registration still belong in the registry
+  for (const d of drivers) {
+    if (d.id === 'u_rules_check') continue; // rules smoke-test doc, not a driver
+    if (!d.iracing && !d.custId) continue;
+    const key = d.custId ? `id:${d.custId}` : (d.iracing || '').toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, { name: d.name || d.iracing, iracing: d.iracing || '—', custId: d.custId || '—', car: '—', affiliation: d.affiliation || '—', raceIds: new Set() });
+    }
+  }
+  // Attach each driver's comfortable-cars list from their profile
+  for (const v of map.values()) {
+    v.comfort = findProfileDoc(v.custId === '—' ? '' : v.custId, v.iracing === '—' ? '' : v.iracing)?.cars || [];
+  }
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -1923,6 +1937,7 @@ document.getElementById('registryBtn').addEventListener('click', () => {
       <td style="color:var(--muted);font-family:monospace">${esc(d.custId)}</td>
       <td style="font-size:13px">${esc(d.car)}</td>
       <td>${affiliBadge(d.affiliation)}</td>
+      <td style="max-width:260px">${d.comfort.length ? d.comfort.map(c => `<span class="comfort-chip">${esc(c)}</span>`).join('') : '<span style="color:var(--muted)">—</span>'}</td>
       <td style="font-size:12px;color:var(--muted)">${[...d.raceIds].map(raceNameById).join(', ')}</td>
     </tr>`).join('');
   document.getElementById('registryOverlay').classList.add('open');
@@ -1952,11 +1967,12 @@ document.getElementById('registryPdfBtn').addEventListener('click', () => {
       </style></head><body>
       <h2>OpMo Endurance — Driver Registry</h2>
       <table>
-        <thead><tr><th>#</th><th>Name</th><th>iRacing Username</th><th>Cust ID</th><th>Car</th><th>Affiliation</th><th>Races</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th><th>iRacing Username</th><th>Cust ID</th><th>Car</th><th>Affiliation</th><th>Comfortable Cars</th><th>Races</th></tr></thead>
         <tbody>${buildRegistry().map((d, i) => `
           <tr>
             <td>${i + 1}</td><td>${esc(d.name)}</td><td>${esc(d.iracing)}</td><td>${esc(d.custId)}</td>
             <td>${esc(d.car)}</td><td>${affilPrintChip(d.affiliation)}</td>
+            <td>${d.comfort.map(esc).join(', ') || '—'}</td>
             <td>${[...d.raceIds].map(raceNameById).join(', ')}</td>
           </tr>`).join('')}
         </tbody>
@@ -1993,12 +2009,12 @@ document.getElementById('exportXlsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('registryXlsBtn').addEventListener('click', () => {
-  const rows = [['#', 'Name', 'iRacing Username', 'Cust ID', 'Car', 'Affiliation', 'Races']];
+  const rows = [['#', 'Name', 'iRacing Username', 'Cust ID', 'Car', 'Affiliation', 'Comfortable Cars', 'Races']];
   buildRegistry().forEach((d, i) => {
-    rows.push([i + 1, d.name, d.iracing, d.custId, d.car, d.affiliation, [...d.raceIds].map(raceNameById).join(', ')]);
+    rows.push([i + 1, d.name, d.iracing, d.custId, d.car, d.affiliation, d.comfort.join(', '), [...d.raceIds].map(raceNameById).join(', ')]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [4, 22, 20, 12, 28, 30, 40].map(w => ({ wch: w }));
+  ws['!cols'] = [4, 22, 20, 12, 28, 30, 44, 40].map(w => ({ wch: w }));
   styleXlsSheet(ws, rows, 5);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Driver Registry');
